@@ -1,0 +1,17 @@
+// 기본 규칙 수치. 숫자만 고치면 게임 전체에 반영된다.
+var JG = globalThis.JG = globalThis.JG || {};
+
+JG.RULES = {
+  days: 15,              // 내 공기(체력). 탁상 달력 D-15
+  startCoins: 1,         // 1턴 공사비
+  maxCoins: 5,           // 공사비 최대치 (매 턴 +1)
+  startHand: 3,          // 시작 손패
+  handMax: 5,            // 손패 최대. 넘치면 뽑은 카드를 버린다
+  zones: 4,              // 내 작업 구역 칸 수 = 현장 문제 칸 수
+  baseTurns: 8,          // 기준 턴. 이 턴이 지나면 매 턴 시작에 지체상금
+  delayPenalty: 2,       // 지체상금으로 깎이는 공기
+  orderCost: 2,          // 작업지시 코인
+  orderAtk: 1,           // 작업지시로 오르는 공격력 (이번 턴만)
+  bricksPerFloor: 4,     // 벽돌 4칸 = 1층
+  stars: [10, 5]         // 준공 때 남은 공기가 10일 이상 ★3, 5일 이상 ★2, 그 아래 ★1
+};
