@@ -64,9 +64,11 @@
     const r = R(), site = JG.SITES.find(x => x.id === opts.siteId), pledge = JG.PLEDGES[opts.pledge] || {};
     const deck = shuffle(opts.deck || JG.STARTER_DECK, opts.seed || 1);
     const handSize = r.startHand + (pledge.extraHand || 0);
-    // 1턴에 낼 카드가 하나도 없으면 답답하니, 시작 손패에 1턴 코인으로 낼 수 있는 카드를 1장 보장한다
-    if (!deck.slice(0, handSize).some(id => card(id).cost <= r.startCoins)) {
-      const k = deck.findIndex(id => card(id).cost <= r.startCoins);
+    // 시작 손패 보장: 현장에 starterCard가 있으면 그 카드(첫 판 안내용),
+    // 없으면 1턴 코인으로 낼 수 있는 카드 1장 (1턴에 낼 카드가 없으면 답답하니까)
+    const wanted = site.starterCard ? id => id === site.starterCard : id => card(id).cost <= r.startCoins;
+    if (!deck.slice(0, handSize).some(wanted)) {
+      const k = deck.findIndex(wanted);
       if (k >= 0) deck.unshift(deck.splice(k, 1)[0]);
     }
     return {
@@ -200,10 +202,11 @@
   }
 
   // ---------- 턴 종료 → 현장 턴 → 다음 내 턴 ----------
-  function endTurn(s) {
+  // opts.snapshots가 true면 각 사건에 그 순간의 상태 사본(state)을 붙인다 (화면에서 하나씩 보여 주기용)
+  function endTurn(s, opts) {
     if (s.over) return fail('판이 끝났어요.');
-    const r = R(), events = [];
-    const say = (t, text, extra) => events.push(Object.assign({ t, text }, extra));
+    const r = R(), events = [], snap = !!(opts && opts.snapshots);
+    const say = (t, text, extra) => events.push(Object.assign({ t, text }, extra, snap ? { state: JSON.parse(JSON.stringify(s)) } : null));
     // 달력(내 공기)이 받는 피해. 안전 구호 다짐이 있으면 첫 피해 1번을 막는다
     const hitCalendar = (n, who) => {
       if (n <= 0) return;
@@ -236,7 +239,7 @@
     if (next && empty >= 0) {
       const d = problem(next);
       s.probs[empty] = { id: next, atk: d.atk, hp: d.hp, guard: !!d.guard, drain: d.drain || 0 };
-      say('newProblem', '새 문제: ' + d.name + '.', { zone: empty });
+      say('newProblem', '새 문제: ' + d.name + '.', { zone: empty, id: next });
     }
     s.fi += 1;
 

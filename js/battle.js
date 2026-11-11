@@ -1,22 +1,41 @@
 // 대전 화면: 규칙 엔진(engine.js)의 상태를 화면 값으로 바꿔 그리고(battle-view.js), 누른 곳을 엔진 행동으로 잇는다.
 (() => {
   const JG = globalThis.JG, E = JG.engine, R = JG.RULES, SP = JG.SPRITES;
-  const ZX = [342, 534, 726, 918];          // 작업 구역 4칸의 가로 위치 (시안 ②)
-  const SITE_ID = 'apart', PLEDGE_ID = 'chant';   // 2단계: 3번 현장 + 안전 구호 제창 고정 (현장 선택은 3단계, TBM은 4단계)
+  const ZX = [342, 534, 726, 918];   // 작업 구역 4칸의 가로 위치 (시안 ②)
+  const PLEDGE_ID = 'chant';          // 오늘의 TBM 다짐. 고르는 화면은 4단계에서
   const PULSE = 'pulse 0.8s steps(2) infinite';
-  const stage = document.getElementById('stage'), live = document.getElementById('live');
-  const esc = x => String(x).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const STEP_MS = 700;                // 현장 턴 사건 하나를 보여 주는 시간
+  const clone = o => JSON.parse(JSON.stringify(o));
 
-  let g, ui;   // g: 엔진 상태, ui: 화면에만 있는 상태(고른 것, 말풍선, 안내 문구)
+  let g, ui;   // g: 엔진 상태, ui: 화면에만 있는 상태 (고른 것, 말풍선, 안내 문구, 현장 턴 재생)
 
-  function start() {
-    g = E.newGame({ siteId: SITE_ID, pledge: PLEDGE_ID, seed: Date.now() % 1000000 + 1 });
-    ui = {
-      sel: null, bubble: null,
-      msg: g.hand.includes('rebar')
-        ? '1턴이에요. 코인 1개로 철근공을 내 보세요. 카드를 누르고, 점선으로 된 빈 작업 구역을 누르면 돼요.'
-        : '1턴이에요. 초록 테두리가 깜빡이는 카드가 지금 낼 수 있는 카드예요. 눌러 보세요.'
-    };
+  // ---------- 판 시작, 저장 ----------
+  function begin(state, prefix) {
+    g = state;
+    ui = { sel: null, bubble: null, replay: null, recorded: !!state.over };
+    ui.msg = (prefix || '') + turnStartText();
+    store();
+  }
+  function store() {
+    JG.save.data.game = g.over ? null : g;
+    JG.save.write();
+  }
+  // 행동 뒤 공통 처리: 준공이면 별 기록, 하던 판 저장
+  function after() {
+    if (g.over && !ui.recorded) {
+      ui.recorded = true;
+      if (g.over === 'win') JG.progress.record(g.siteId, E.stars(g));
+    }
+    store();
+  }
+
+  // 내 턴이 시작될 때 안내: 첫 판 안내 문구가 있으면 그것, 없으면 기본 안내
+  function turnStartText() {
+    const guide = E.siteOf(g).guide;
+    if (guide && guide[g.turn]) return g.turn + '턴이에요. ' + guide[g.turn];
+    if (g.turn === 1) return '1턴이에요. 초록 테두리가 깜빡이는 카드가 지금 낼 수 있는 카드예요. 카드를 누르고 점선으로 된 빈 작업 구역을 누르면 돼요.';
+    return g.turn + '턴이에요. 초록 테두리가 지금 할 수 있는 행동이에요.'
+      + (g.turn > R.baseTurns ? ' 기준 턴이 지나서 매 턴 지체상금이 붙어요. 서둘러요!' : '');
   }
 
   // 엔진 결과를 안내 문구와 말풍선에 반영
@@ -25,7 +44,7 @@
     const b = res.events.filter(e => e.t === 'bubble').pop();
     ui.bubble = b ? { zone: b.zone, text: b.text } : null;
   }
-  const selWorker = () => ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null;
+  const selWorker = () => (ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null);
 
   // ---------- 누른 곳 처리 ----------
   function pickCard(i) {
@@ -39,7 +58,6 @@
   }
 
   function pickMy(i) {
-    if (g.over) return;
     if (ui.sel && ui.sel.t === 'card') {
       const res = E.playCard(g, ui.sel.i, i);
       if (res.ok) ui.sel = null;
@@ -59,7 +77,6 @@
   }
 
   function pickProb(i) {
-    if (g.over) return;
     if (selWorker() === null) {
       const p = g.probs[i], d = p && JG.PROBLEMS[p.id];
       ui.msg = p ? d.name + ': 공격 ' + p.atk + ', 체력 ' + p.hp + '. ' + d.tip : '다음 턴에 예고된 문제 카드가 들어올 자리예요.';
@@ -71,44 +88,118 @@
   }
 
   function hitBuilding() {
-    if (g.over) return;
     if (selWorker() === null) { ui.msg = '건물: 벽돌 ' + g.bricks + '/' + g.totalBricks + '칸. 작업팀을 고른 뒤 건물을 누르면 벽돌이 쌓여요.'; return; }
     const res = E.hit(g, selWorker(), 'building');
     if (res.ok) ui.sel = null;
     apply(res);
   }
 
-  const actions = {
-    card: i => pickCard(i),
-    my: i => pickMy(i),
-    prob: i => pickProb(i),
-    building: hitBuilding,
-    order: () => { if (!g.over) apply(E.order(g, selWorker())); },
-    end: () => { if (!g.over) { ui.sel = null; apply(E.endTurn(g)); } },
-    restart: start
+  // ---------- 턴 종료: 현장 턴을 사건 하나씩 보여 준다 (아무 곳이나 누르면 바로 끝) ----------
+  function endTurn() {
+    ui.sel = null; ui.bubble = null;
+    const before = clone(g), forecast = E.siteOf(g).forecast;
+    const res = E.endTurn(g, { snapshots: true });
+    after();
+
+    // 이 판에서 처음 나온 문제는 요령 한 줄을 붙인다
+    const firstTime = e => e.t === 'newProblem' && before.fi < forecast.length && !forecast.slice(0, before.fi).includes(e.id);
+    const tips = res.events.filter(firstTime).map(e => JG.PROBLEMS[e.id].name + ': ' + JG.PROBLEMS[e.id].tip);
+    const frames = [{ state: before, msg: '현장 턴이에요. 현장이 움직여요...' }]
+      .concat(res.events.map(e => ({ state: e.state, msg: e.text + (firstTime(e) ? ' ' + JG.PROBLEMS[e.id].tip : '') })));
+
+    // 다 보여 준 뒤 남길 요약
+    const parts = [], lost = before.days - g.days;
+    if (lost > 0) parts.push('공기 -' + lost + '일');
+    res.events.forEach(e => {
+      if (e.t === 'newProblem') parts.push('새 문제 ' + JG.PROBLEMS[e.id].name);
+      if (e.t === 'out') parts.push(e.text.split(':')[0] + ' 퇴장');
+    });
+    const summary = parts.length ? '현장 턴: ' + parts.join(', ') + '.' : '현장 턴이 조용히 지나갔어요.';
+    const final = g.over ? res.events[res.events.length - 1].text : [summary].concat(tips, turnStartText()).join(' ');
+
+    ui.replay = { frames, i: 0, final, timer: null };
+    const step = i => {
+      if (!ui.replay) return;
+      if (i >= frames.length) { finishReplay(); return; }
+      ui.replay.i = i;
+      ui.msg = frames[i].msg;
+      JG.app.render();
+      ui.replay.timer = setTimeout(() => step(i + 1), i === 0 ? 500 : STEP_MS);
+    };
+    step(0);
+  }
+  function finishReplay() {
+    clearTimeout(ui.replay.timer);
+    ui.msg = ui.replay.final;
+    ui.replay = null;
+    JG.app.render();
+  }
+
+  // ---------- 화면 등록 ----------
+  JG.screens.battle = {
+    // arg: { siteId } 새 판, { resume: true } 하던 판 이어하기
+    enter(arg) {
+      if (arg.resume && JG.save.data.game) begin(JG.save.data.game, '이어서 해요. ');
+      else begin(E.newGame({ siteId: arg.siteId, pledge: PLEDGE_ID, seed: Date.now() % 1000000 + 1 }));
+    },
+    msg: () => ui.msg,
+
+    click(act, n) {
+      if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
+      if (act === 'restart') { begin(E.newGame({ siteId: g.siteId, pledge: PLEDGE_ID, seed: Date.now() % 1000000 + 1 })); return; }
+      if (act === 'exit') { JG.app.show('title'); return; }
+      if (act === 'sites') { JG.app.show('sites'); return; }
+      if (act === 'next') { JG.app.show('battle', { siteId: nextSiteId() }); return; }
+      if (g.over) return;
+      ui.bubble = null;
+      if (act === 'card') pickCard(n);
+      else if (act === 'my') pickMy(n);
+      else if (act === 'prob') pickProb(n);
+      else if (act === 'building') hitBuilding();
+      else if (act === 'order') apply(E.order(g, selWorker()));
+      else if (act === 'end') { endTurn(); return; }
+      after();
+    },
+
+    render() { return JG.battleView(view(), JG.esc); }
   };
 
-  stage.addEventListener('click', e => {
-    const el = e.target.closest('[data-act]');
-    if (!el) return;
-    const [act, n] = el.dataset.act.split(':');
-    actions[act](Number(n));
-    render();
-  });
+  // 준공한 현장의 다음 현장 (없으면 null)
+  function nextSiteId() {
+    const i = JG.SITES.findIndex(s => s.id === g.siteId);
+    return i + 1 < JG.SITES.length && JG.progress.unlocked(i + 1) ? JG.SITES[i + 1].id : null;
+  }
 
-  // ---------- 화면 값 만들기 (시안 ②의 renderVals를 엔진에 맞게 옮김) ----------
-  function pledgeStatus() {
-    if (g.pledge === 'chant') return g.shield > 0 ? '첫 피해 1번 무효 (1회 남음)' : '첫 피해를 이미 막았어요';
-    if (g.pledge === 'delivery') return '시작 손패 +1장 (받았어요)';
-    if (g.pledge === 'inspect') return g.equipDiscount > 0 ? '처음 내는 장비 카드 코인 -1' : '장비 할인을 이미 썼어요';
+  function pledgeStatus(s) {
+    if (s.pledge === 'chant') return s.shield > 0 ? '첫 피해 1번 무효 (1회 남음)' : '첫 피해를 이미 막았어요';
+    if (s.pledge === 'delivery') return '시작 손패 +1장 (받았어요)';
+    if (s.pledge === 'inspect') return s.equipDiscount > 0 ? '처음 내는 장비 카드 코인 -1' : '장비 할인을 이미 썼어요';
     return '';
   }
 
+  // 끝 창 버튼: 준공했고 다음 현장이 있으면 [다음 현장] [다시 하기] [현장 고르기], 아니면 [다시 하기] [현장 고르기]
+  function overButtons() {
+    const next = g.over === 'win' && nextSiteId();
+    if (next) {
+      return [
+        { act: 'next', label: '다음 현장', x: 13, w: 220, primary: true },
+        { act: 'restart', label: '다시 하기', x: 245, w: 150 },
+        { act: 'sites', label: '현장 고르기', x: 407, w: 150 }
+      ];
+    }
+    return [
+      { act: 'restart', label: '다시 하기', x: 36, w: 240, primary: true },
+      { act: 'sites', label: '현장 고르기', x: 294, w: 240 }
+    ];
+  }
+
+  // ---------- 화면 값 만들기 (시안 ②의 renderVals를 엔진에 맞게 옮김) ----------
   function view() {
-    const s = g, site = E.siteOf(s), cond = site.condition ? JG.CONDITIONS[site.condition] : null;
-    const sel = ui.sel, selW = selWorker() !== null, selC = !!(sel && sel.t === 'card'), gi = E.guardIndex(s);
+    const busy = !!ui.replay, s = busy ? ui.replay.frames[ui.replay.i].state : g;
+    const site = E.siteOf(s), cond = site.condition ? JG.CONDITIONS[site.condition] : null;
+    const sel = busy ? null : ui.sel, selW = !!(sel && sel.t === 'worker'), selC = !!(sel && sel.t === 'card'), gi = E.guardIndex(s);
     const per = R.bricksPerFloor, floorsN = E.totalFloors(s), done = E.floors(s);
-    const canHit = i => !E.whyCantHit(s, i);
+    const canHit = i => !busy && !E.whyCantHit(s, i);
     const sky = s.turn <= 3 ? ['#A9CFE0', '아침'] : s.turn <= 6 ? ['#8CBBD3', '낮'] : s.turn <= R.baseTurns ? ['#E9A47A', '노을'] : ['#2C3E66', '밤 (야간작업)'];
 
     // 건물: 벽돌 칸, 다음 칸 표시, 지붕, 크레인 훅
@@ -122,7 +213,7 @@
     const bldTarget = selW && gi < 0;
 
     // 작업 구역 (내 작업팀)
-    const canAnyAct = !s.over && !sel;
+    const canAnyAct = !s.over && !sel && !busy;
     const myZones = s.my.map((w, i) => {
       const c = w ? JG.CARDS[w.id] : null, isSel = selW && sel.i === i, act = canAnyAct && w && canHit(i), place = selC && !w;
       const atk = w ? E.atkOf(s, w) : 0;
@@ -139,7 +230,7 @@
         tag: !w ? '' : w.curing ? '양생 중' : w.guard ? '방호' : canHit(i) ? '칠 수 있음' : (w.ready ? '대기' : '다음 턴부터'),
         tagColor: !w ? '#3B2A20' : w.curing ? '#2C4266' : w.guard ? '#8B3A1E' : canHit(i) ? '#23602A' : '#5C3A1E',
         bob: w && canHit(i) ? 'bob 1s steps(2) infinite' : 'none',
-        hasBubble: !!(ui.bubble && ui.bubble.zone === i), bubble: ui.bubble ? ui.bubble.text : '', bx: ZX[i] + 18
+        hasBubble: !busy && !!(ui.bubble && ui.bubble.zone === i), bubble: ui.bubble ? ui.bubble.text : '', bx: ZX[i] + 18
       };
     });
 
@@ -163,7 +254,7 @@
     const n = s.hand.length, left = 720 - (n * 144 + (n - 1) * 12) / 2;
     const hand = s.hand.map((id, i) => {
       const c = JG.CARDS[id], cost = E.costOf(s, id), afford = !s.over && cost <= s.coins, isSel = selC && sel.i === i;
-      const playable = !sel && !E.whyCantPlay(s, i), crew = c.kind === 'crew';
+      const playable = !sel && !busy && !E.whyCantPlay(s, i), crew = c.kind === 'crew';
       return {
         x: left + i * 156, y: isSel ? 582 : 606, click: 'card:' + i,
         aria: c.name + ' 카드, 코인 ' + cost + (crew ? ', 공격 ' + c.atk + ', 체력 ' + c.hp : '') + '. ' + c.text,
@@ -176,9 +267,9 @@
     });
 
     const coins = [0, 1, 2, 3, 4].map(k => ({ l: 9 + k * 30 - 3, shadow: k < s.coins ? SP.coin : (k < s.maxCoins ? SP.coin_empty : '0 0 0 transparent') }));
-    const canAct = !s.over && (s.my.some((w, i) => canHit(i)) || s.hand.some((id, h) => !E.whyCantPlay(s, h)));
+    const canAct = !s.over && !busy && (s.my.some((w, i) => canHit(i)) || s.hand.some((id, h) => !E.whyCantPlay(s, h)));
     const fcId = E.nextProblem(s), fc = fcId ? JG.PROBLEMS[fcId] : null;
-    const st = E.stars(s);
+    const st = E.stars(s), showOver = !!s.over && !busy;
 
     return {
       sky: sky[0], skyName: sky[1], turnText: s.turn + '턴 / ' + R.baseTurns + '턴',
@@ -196,38 +287,19 @@
       hitBuilding: 'building',
       fcShadow: fc ? SP[fcId] : '0 0 0 transparent', fcName: fc ? fc.name : '조용한 하루', fcStat: fc ? '공격 ' + fc.atk + ' · 체력 ' + fc.hp : '문제 없음',
       msg: ui.msg,
-      pledgeName: g.pledge ? JG.PLEDGES[g.pledge].name : '없음', shieldText: pledgeStatus(),
+      pledgeName: s.pledge ? JG.PLEDGES[s.pledge].name : '없음', shieldText: pledgeStatus(s),
       deckText: s.deck.length + '장 남음',
       probZones, myZones, hand, coins, coinText: s.coins + '/' + s.maxCoins,
       daysText: 'D-' + s.days, daysColor: s.days <= 5 ? '#B83E3C' : '#3B2A20',
-      endTurn: 'end', order: 'order', restart: 'restart',
-      orderOpacity: E.whyCantOrder(s) ? 0.55 : 1,
-      endOutline: canAct ? '3px solid transparent' : '3px solid #7BD389', endAnim: canAct || s.over ? 'none' : PULSE,
-      isOver: !!s.over, overTitle: s.over === 'win' ? '준공!' : '공기 지연...',
-      stars: '★'.repeat(st) + '☆'.repeat(3 - st),
+      endTurn: 'end', order: 'order', restart: 'restart', exit: 'exit',
+      orderOpacity: !busy && !E.whyCantOrder(s) ? 1 : 0.55,
+      endOutline: canAct || busy ? '3px solid transparent' : '3px solid #7BD389', endAnim: canAct || busy || s.over ? 'none' : PULSE,
+      isOver: showOver, overTitle: s.over === 'win' ? '준공!' : '공기 지연...',
+      stars: '★'.repeat(st) + '☆'.repeat(3 - st), starsColor: s.over === 'win' ? '#F7C948' : '#D9CBA8',
       overText: s.over === 'win'
         ? '남은 공기 D-' + s.days + ' · ' + s.turn + '턴 만에 ' + floorsN + '층 완성'
-        : '달력이 D-0이 됐어요. 현장 문제를 먼저 치우면 공기를 지킬 수 있어요.'
+        : '달력이 D-0이 됐어요. 현장 문제를 먼저 치우면 공기를 지킬 수 있어요.',
+      overButtons: showOver ? overButtons() : []
     };
   }
-
-  // ---------- 그리기 ----------
-  function render() {
-    const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.act : null;
-    stage.innerHTML = JG.battleView(view(), esc);
-    if (live.textContent !== ui.msg) live.textContent = ui.msg;
-    if (focused) { const el = stage.querySelector('[data-act="' + focused + '"]'); if (el) el.focus(); }
-  }
-
-  // 1440×810 무대를 창에 꽉 차게 (비율 유지, 가운데 정렬)
-  function fit() {
-    const k = Math.min(innerWidth / 1440, innerHeight / 810);
-    stage.style.transform = 'translate(' + (innerWidth - 1440 * k) / 2 + 'px, ' + (innerHeight - 810 * k) / 2 + 'px) scale(' + k + ')';
-  }
-  addEventListener('resize', fit);
-  document.getElementById('rotate-close').addEventListener('click', () => document.body.classList.add('rotate-ok'));
-
-  start();
-  fit();
-  render();
 })();

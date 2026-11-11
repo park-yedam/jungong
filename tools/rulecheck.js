@@ -15,7 +15,16 @@ t('덱 9장', s.deck.length === 9);
 t('공기 15, 코인 1, 벽돌 0/20', s.days === 15 && s.coins === 1 && s.totalBricks === 20);
 t('시작 손패에 1코인 카드', s.hand.some(id => JG.CARDS[id].cost <= 1));
 t('자재 반입 확인: 손패 4장', E.newGame({ siteId: 'apart', pledge: 'delivery', seed: 3 }).hand.length === 4);
-for (let seed = 1; seed < 300; seed++) { const g = E.newGame({ siteId: 'house', seed }); if (!g.hand.some(id => JG.CARDS[id].cost <= 1)) { t('시드 ' + seed + ' 1코인 카드 보장', false); break; } }
+for (let seed = 1; seed < 300; seed++) { const g = E.newGame({ siteId: 'apart', seed }); if (!g.hand.some(id => JG.CARDS[id].cost <= 1)) { t('시드 ' + seed + ' 1코인 카드 보장', false); break; } }
+for (let seed = 1; seed < 300; seed++) { const g = E.newGame({ siteId: 'house', seed }); if (!g.hand.includes('rebar') || g.hand.length + g.deck.length !== 12) { t('1번 현장 시드 ' + seed + ' 시작 손패에 철근공', false); break; } }
+
+// 현장 턴 단계 기록 (화면 연출용)
+s = fresh('apart');
+s.probs[0] = { id: 'leak', atk: 1, hp: 2, guard: false, drain: 1 };
+let snapRes = E.endTurn(s, { snapshots: true });
+t('단계마다 상태 사본이 붙음', snapRes.events.length > 0 && snapRes.events.every(e => e.state && typeof e.state.days === 'number'));
+t('첫 사건(누수) 직후 공기 14', snapRes.events[0].state.days === 14);
+t('사본 없이 부르면 state 없음', E.endTurn(fresh('apart')).events.every(e => !e.state));
 
 // 선행공정
 s = fresh('apart', { coins: 5, maxCoins: 5, hand: ['rebar', 'form', 'form'] });
