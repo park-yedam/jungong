@@ -10,7 +10,9 @@
   const card = id => JG.CARDS[id];
   const problem = id => JG.PROBLEMS[id];
   const siteOf = s => JG.SITES.find(x => x.id === s.siteId);
-  const conditionOf = s => { const id = siteOf(s).condition; return id ? JG.CONDITIONS[id] : null; };
+  // 현장 조건. 보온양생 같은 공법으로 무효가 되면(condOff) 없는 것으로 친다
+  const conditionOf = s => { const id = siteOf(s).condition; return id && !s.condOff ? JG.CONDITIONS[id] : null; };
+  const diffOf = s => JG.DIFFICULTY[s.diff] || JG.DIFFICULTY.normal;
 
   // 한국어 조사: 받침이 있으면 '은/이', 없으면 '는/가'
   const hasBatchim = w => { const c = w.charCodeAt(w.length - 1) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
@@ -41,11 +43,13 @@
   const fail = msg => result(false, msg);
 
   // ---------- 계산 ----------
-  // 작업팀의 지금 공격력: 기본 + 작업지시 + 현장 조건(예: 집중호우면 콘크리트 -1)
+  // 내 필드의 오라(예: 신호수 → 장비 공격 +1). 같은 공종 오라는 겹치지 않는다
+  const auraAtk = (s, trade) => Math.max(0, ...s.my.map(x => { const a = x && card(x.id).aura; return a && a.trade === trade ? a.atk : 0; }));
+  // 작업팀의 지금 공격력: 기본 + 작업지시·돌관작업 + 오라 + 현장 조건(예: 집중호우면 콘크리트 -1, PC 부재는 날씨 무시)
   function atkOf(s, w) {
-    const cond = conditionOf(s);
-    const mod = cond && cond.tradeAtk ? (cond.tradeAtk[card(w.id).trade] || 0) : 0;
-    return Math.max(0, w.atk + w.buff + mod);
+    const c = card(w.id), cond = conditionOf(s);
+    const weather = cond && cond.tradeAtk && !c.weatherProof ? (cond.tradeAtk[c.trade] || 0) : 0;
+    return Math.max(0, w.atk + w.buff + auraAtk(s, c.trade) + weather);
   }
   const guardIndex = s => s.probs.findIndex(p => p && p.guard);
   // 양옆에 안전관리자가 있으면 i번 작업팀이 받는 피해가 줄어든다
@@ -54,6 +58,11 @@
   const costOf = (s, id) => { const c = card(id); return Math.max(0, c.cost - (c.trade === 'equipment' ? s.equipDiscount : 0)); };
   const floors = s => Math.floor(s.bricks / R().bricksPerFloor);
   const totalFloors = s => s.totalBricks / R().bricksPerFloor;
+  // n번째로 완성한 층의 이름 (지하가 있으면 지하 2층 → 지하 1층 → 지상 1층 순서)
+  function floorName(s, n) {
+    const b = siteOf(s).basement || 0;
+    return n <= b ? '지하 ' + (b - n + 1) + '층' : (b ? '지상 ' : '') + (n - b) + '층';
+  }
   const nextProblem = s => { const f = siteOf(s).forecast; return f[s.fi % f.length]; };
   function stars(s) {
     if (s.over !== 'win') return 0;
@@ -62,7 +71,7 @@
   }
 
   // ---------- 판 시작 ----------
-  // opts: { siteId, pledge(다짐 id, 없어도 됨), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱) }
+  // opts: { siteId, pledge(다짐 id), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱), difficulty('easy' | 'normal' | 'hard') }
   function newGame(opts) {
     const r = R(), site = JG.SITES.find(x => x.id === opts.siteId), pledge = JG.PLEDGES[opts.pledge] || {};
     const deck = shuffle(opts.deck || JG.STARTER_DECK, opts.seed || 1);
@@ -75,12 +84,13 @@
       if (k >= 0) deck.unshift(deck.splice(k, 1)[0]);
     }
     return {
-      siteId: site.id, pledge: opts.pledge || null,
+      siteId: site.id, pledge: opts.pledge || null, diff: opts.difficulty || 'normal',
       turn: 1, maxCoins: r.startCoins, coins: r.startCoins,
       bricks: 0, totalBricks: site.bricks, days: r.days, fi: 0,
       hand: deck.splice(0, handSize), deck,
       my: new Array(r.zones).fill(null), probs: new Array(r.zones).fill(null),
       orderUsed: false, shield: pledge.shield || 0, equipDiscount: pledge.equipDiscount || 0,
+      condOff: false, cancelNext: false,
       over: null,
       // 결과 화면용 기록: work[턴-1] = 그 턴에 일한 공종들, floors[층-1] = 완성한 턴, cards = 낸 카드 id
       rec: { work: [], floors: [], cards: [] }
@@ -109,39 +119,69 @@
     const c = card(id), cost = costOf(s, id);
     if (cost > s.coins) return c.name + ': 코인 ' + cost + '개가 필요해요. 지금은 ' + s.coins + '개뿐이에요.';
     if (c.kind === 'crew' && !s.my.some(w => !w)) return '작업 구역이 꽉 찼어요. 작업팀이 퇴장하면 자리가 나요.';
+    if (c.target === 'ally' && !s.my.some(Boolean)) return c.name + ': 작업팀이 있어야 쓸 수 있어요.';
+    if (c.target === 'problem' && !s.probs.some(Boolean)) return c.name + ': 없앨 문제 카드가 없어요.';
+    if (c.cancelForecast && (!nextProblem(s) || s.cancelNext)) return c.name + ': 취소할 예고 문제가 없어요.';
+    if (c.selfDays && s.days <= c.selfDays) return c.name + ': 공기가 ' + s.days + '일뿐이라 무리예요.';
     return null;
   }
 
-  // 손패 h번 카드를 낸다. 작업팀이면 z번 작업 구역에, 공법이면 z는 무시한다
+  // 손패 h번 카드를 낸다. 작업팀이면 z번 작업 구역에, 대상 공법이면 z번 작업팀(ally) 또는 z번 문제(problem)에 쓴다
   function playCard(s, h, z) {
     const why = whyCantPlay(s, h);
     if (why) return fail(why);
     const id = s.hand[h], c = card(id), cost = costOf(s, id);
     if (c.kind === 'crew' && (!(z >= 0 && z < s.my.length) || s.my[z])) return fail('빈 작업 구역(점선)을 골라 주세요.');
+    if (c.target === 'ally' && !(z >= 0 && s.my[z])) return fail(c.name + ': 쓸 작업팀을 골라 주세요.');
+    if (c.target === 'problem' && !(z >= 0 && s.probs[z])) return fail(c.name + ': 없앨 문제 카드를 골라 주세요.');
 
     s.coins -= cost;
     s.hand.splice(h, 1);
     if (c.trade === 'equipment') s.equipDiscount = 0;
     if (!s.rec.cards.includes(id)) s.rec.cards.push(id);
 
-    if (c.kind === 'spell') {
-      const n = draw(s, c.draw || 0);
-      return result(true, c.name + '! 카드 ' + n + '장을 뽑았어요.', [{ t: 'spell', id }]);
-    }
+    if (c.kind === 'spell') return castSpell(s, id, z);
 
-    const w = { id, atk: c.atk, hp: c.hp, ready: !!c.rush, fresh: true, curing: !!c.cure, guard: !!c.guard, buff: 0, pre: false };
-    if (c.prerequisite && s.my.some(x => x && x.id === c.prerequisite)) {
-      w.atk += c.preBonus.atk; w.hp += c.preBonus.hp; w.pre = true;
-    }
+    const cond = conditionOf(s);
+    const w = { id, atk: c.atk, hp: c.hp, ready: !!c.rush, fresh: true, curing: c.cure ? 1 + ((cond && cond.cureDelay) || 0) : 0, guard: !!c.guard, buff: 0, pre: false };
+    const pre = c.prerequisite && s.my.some(x => x && x.id === c.prerequisite);
+    if (pre && c.preBonus) { w.atk += c.preBonus.atk; w.hp += c.preBonus.hp; }
+    w.pre = !!pre;
     s.my[z] = w;
     mark(s);
 
     let msg = w.ready ? c.name + ' 긴급투입! 바로 망치질할 수 있어요.'
       : w.guard ? c.name + ' 배치! 방호라서 현장 문제가 이쪽을 먼저 쳐요.'
       : c.name + ' 배치! 다음 턴부터 망치질해요.';
-    if (w.pre) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 +' + c.preBonus.atk + '/+' + c.preBonus.hp + '!';
-    if (w.curing) msg += ' 양생이 끝나면 더 단단해져요.';
+    if (pre && c.preBonus) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 +' + c.preBonus.atk + '/+' + c.preBonus.hp + '!';
+    if (pre && c.preDraw) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 카드 ' + draw(s, c.preDraw) + '장을 뽑았어요!';
+    if (w.curing) msg += w.curing > 1 ? ' 한파라서 양생이 ' + w.curing + '턴 걸려요.' : ' 양생이 끝나면 더 단단해져요.';
     return result(true, msg, [{ t: 'bubble', zone: z, text: c.line }]);
+  }
+
+  // 공법 효과 (카드 데이터의 효과 이름대로)
+  function castSpell(s, id, z) {
+    const c = card(id), parts = [], events = [{ t: 'spell', id }];
+    if (c.draw) parts.push('카드 ' + draw(s, c.draw) + '장을 뽑았어요');
+    if (c.heal) { s.my[z].hp += c.heal; parts.push(card(s.my[z].id).name + ' 체력 +' + c.heal); }
+    if (c.cancels && siteOf(s).condition === c.cancels && !s.condOff) {
+      s.condOff = true;
+      s.my.forEach(w => { if (w && w.curing > 1) w.curing = 1; });   // 늦어지던 양생도 원래대로
+      parts.push(JG.CONDITIONS[c.cancels].name + ' 조건이 풀렸어요');
+    }
+    if (c.buffTrade) {
+      const b = c.buffTrade, ws = s.my.filter(w => w && card(w.id).trade === b.trade);
+      ws.forEach(w => { w.atk += b.atk; w.hp += b.hp; });
+      parts.push(ws.length ? '콘크리트 작업팀 ' + ws.length + '팀 +' + b.atk + '/+' + b.hp : '강해질 콘크리트 작업팀은 없었어요');
+    }
+    if (c.cancelForecast) { s.cancelNext = true; parts.push('예고된 ' + problem(nextProblem(s)).name + ' 취소'); }
+    if (c.teamAtk) {
+      s.my.forEach(w => { if (w) w.buff += c.teamAtk; });
+      s.days -= c.selfDays;
+      parts.push('이번 턴 모두 공격 +' + c.teamAtk + ', 공기 -' + c.selfDays + '일');
+    }
+    if (c.remove) { parts.push(problem(s.probs[z].id).name + ' 제거'); s.probs[z] = null; events.push({ t: 'solved', zone: z }); }
+    return result(true, c.name + '! ' + parts.join(', ') + '.', events);
   }
 
   // ---------- 내 턴: 망치질 ----------
@@ -151,7 +191,7 @@
     if (!w) return '작업팀이 없는 자리예요.';
     const c = card(w.id);
     if (!w.ready) {
-      if (w.curing) return eun(c.name) + ' 양생 중이에요. 다음 턴에 +' + c.cure.atk + '/+' + c.cure.hp + '로 단단해져요.';
+      if (w.curing) return eun(c.name) + ' 양생 중이에요. ' + (w.curing > 1 ? w.curing + '턴 뒤에' : '다음 턴에') + ' +' + c.cure.atk + '/+' + c.cure.hp + '로 단단해져요.';
       if (w.fresh) return eun(c.name) + ' 방금 들어왔어요. 다음 턴부터 일해요.';
       return eun(c.name) + ' 이번 턴에 이미 망치질했어요.';
     }
@@ -176,8 +216,13 @@
       w.ready = false;
       const events = [{ t: 'bubble', zone: i, text: '통통!' }, { t: 'bricks', zone: i, n: a }];
       let msg = '통통! ' + ga(c.name) + ' 벽돌 ' + a + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').';
-      if (floors(s) > before) { msg += ' ' + floors(s) + '층 완성! 창문에 불이 켜졌어요.'; events.push({ t: 'floor', n: floors(s) }); }
-      if (s.bricks >= s.totalBricks) { s.over = 'win'; msg = '준공! ' + totalFloors(s) + '층까지 다 올렸어요.'; events.push({ t: 'win' }); }
+      if (floors(s) > before) { msg += ' ' + floorName(s, floors(s)) + ' 완성! 창문에 불이 켜졌어요.'; events.push({ t: 'floor', n: floors(s) }); }
+      if (s.bricks >= s.totalBricks) {
+        const b = siteOf(s).basement || 0;
+        s.over = 'win';
+        msg = '준공! ' + (b ? '지하 ' + b + '층, 지상 ' + (totalFloors(s) - b) + '층' : totalFloors(s) + '층') + '까지 다 올렸어요.';
+        events.push({ t: 'win' });
+      }
       return result(true, msg, events);
     }
 
@@ -222,7 +267,7 @@
   // opts.snapshots가 true면 각 사건에 그 순간의 상태 사본(state)을 붙인다 (화면에서 하나씩 보여 주기용)
   function endTurn(s, opts) {
     if (s.over) return fail('판이 끝났어요.');
-    const r = R(), events = [], snap = !!(opts && opts.snapshots);
+    const r = R(), events = [], snap = !!(opts && opts.snapshots), cond = conditionOf(s);
     const say = (t, text, extra) => events.push(Object.assign({ t, text }, extra, snap ? { state: JSON.parse(JSON.stringify(s)) } : null));
     // 달력(내 공기)이 받는 피해. 안전 구호 다짐이 있으면 첫 피해 1번을 막는다
     const hitCalendar = (n, who) => {
@@ -232,54 +277,74 @@
     };
 
     mark(s);
-    // 작업지시는 내 턴에만 적용된다
+    // 작업지시·돌관작업은 내 턴에만 적용된다
     s.my.forEach(w => { if (w) w.buff = 0; });
 
-    // 1. 누수 같은 문제가 공기를 깎는다
+    // 1. 연약지반: 방호 작업팀이 없으면 공기가 깎인다. 누수 같은 문제도 공기를 깎는다
+    if (cond && cond.needGuard && !s.my.some(w => w && w.guard)) hitCalendar(cond.needGuard, cond.name + '(방호 작업팀 없음)');
     s.probs.forEach(p => { if (p && p.drain) hitCalendar(p.drain, problem(p.id).name); });
 
     // 2. 문제 카드가 차례로 친다. 대상: 방호 작업팀 → 한 번에 퇴장시킬 수 있는 작업팀 → 달력
+    //    (작업팀만 치는 문제는 달력 대신 첫 작업팀, 작업팀이 없으면 쉰다)
     s.probs.forEach((p, pi) => {
       if (!p || p.atk <= 0) return;
-      const name = problem(p.id).name, dmgTo = k => Math.max(0, p.atk - protection(s, k));
+      const d = problem(p.id), dmgTo = k => Math.max(0, p.atk - protection(s, k));
       let ti = s.my.findIndex(w => w && w.guard);
       if (ti < 0) ti = s.my.findIndex((w, k) => w && w.hp <= dmgTo(k));
-      if (ti < 0) { hitCalendar(p.atk, name); return; }
+      if (ti < 0 && d.workersOnly) ti = s.my.findIndex(Boolean);
+      if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name); return; }
       const w = s.my[ti], wname = card(w.id).name, dmg = dmgTo(ti);
       w.hp -= dmg; p.hp -= atkOf(s, w);   // 작업팀은 맞으면서 자기 공격력만큼 되친다
-      say('hitWorker', name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti });
+      say('hitWorker', d.name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti });
       if (w.hp <= 0) { s.my[ti] = null; say('out', wname + ': "오늘 작업 끝!" 하고 퇴장.', { zone: ti }); }
-      if (p.hp <= 0) { s.probs[pi] = null; say('solved', name + ' 해결!', { zone: pi }); }
+      if (p.hp <= 0) { s.probs[pi] = null; say('solved', d.name + ' 해결!', { zone: pi }); }
     });
 
-    // 3. 예고했던 문제가 빈칸에 들어온다 (새로 나온 문제는 이번 현장 턴에 치지 않는다)
+    // 3. 설계변경: 손패 맨 왼쪽 카드를 덱 맨 아래로 보내고 새로 뽑는다
+    s.probs.forEach(p => {
+      const n = p ? problem(p.id).swapHand || 0 : 0;
+      for (let k = 0; k < n && s.hand.length && s.deck.length; k++) {
+        const out = s.hand.shift();
+        s.deck.push(out); s.hand.push(s.deck.shift());
+        say('swap', problem(p.id).name + ': 손패의 ' + card(out).name + ' 카드가 바뀌었어요.');
+      }
+    });
+
+    // 4. 예고했던 문제가 빈칸에 들어온다 (새로 나온 문제는 이번 현장 턴에 치지 않는다). BIM 간섭검토로 취소했으면 안 들어온다
     const next = nextProblem(s), empty = s.probs.findIndex(p => !p);
-    if (next && empty >= 0) {
+    if (next && s.cancelNext) say('cancelled', 'BIM 간섭검토 덕분에 ' + ga(problem(next).name) + ' 안 들어왔어요.');
+    else if (next && empty >= 0) {
       const d = problem(next);
-      s.probs[empty] = { id: next, atk: d.atk, hp: d.hp, guard: !!d.guard, drain: d.drain || 0 };
+      s.probs[empty] = { id: next, atk: Math.max(0, d.atk + diffOf(s).probAtk), hp: d.hp, guard: !!d.guard, drain: d.drain || 0 };
       say('newProblem', '새 문제: ' + d.name + '.', { zone: empty, id: next });
     }
+    s.cancelNext = false;
     s.fi += 1;
 
-    // 4. 다음 내 턴 시작: 코인 채우기, 양생, 카드 뽑기, 지체상금
+    // 5. 다음 내 턴 시작: 코인 채우기(자재 반입 지연이면 덜), 양생, 카드 뽑기, 지체상금
     s.turn += 1;
     s.maxCoins = Math.min(r.maxCoins, s.maxCoins + 1);
-    s.coins = s.maxCoins;
+    const coinDrain = s.probs.reduce((n, p) => n + ((p && problem(p.id).coinDrain) || 0), 0);
+    s.coins = Math.max(0, s.maxCoins - coinDrain);
+    if (coinDrain) say('coinDrain', '자재 반입 지연: 이번 턴 공사비 -' + coinDrain + '.');
     s.orderUsed = false;
     s.my.forEach(w => {
       if (!w) return;
       if (w.curing) {
-        const cure = card(w.id).cure;
-        w.atk += cure.atk; w.hp += cure.hp; w.curing = false;
-        say('cured', card(w.id).name + ' 양생 완료 +' + cure.atk + '/+' + cure.hp + '.');
+        w.curing -= 1;
+        if (!w.curing) {
+          const cure = card(w.id).cure;
+          w.atk += cure.atk; w.hp += cure.hp;
+          say('cured', card(w.id).name + ' 양생 완료 +' + cure.atk + '/+' + cure.hp + '.');
+        }
       }
-      w.ready = true; w.fresh = false;
+      w.ready = !w.curing; w.fresh = false;
     });
     if (s.deck.length) {
       if (s.hand.length < r.handMax) s.hand.push(s.deck.shift());
       else { s.deck.shift(); say('burn', '손패가 꽉 차서 카드 1장이 버려졌어요.'); }
     }
-    if (s.turn > r.baseTurns) { s.days -= r.delayPenalty; say('penalty', (r.baseTurns + 1) + '턴부터 지체상금: 공기 -' + r.delayPenalty + '일.'); }
+    if (s.turn > r.baseTurns && diffOf(s).delayPenalty) { s.days -= r.delayPenalty; say('penalty', (r.baseTurns + 1) + '턴부터 지체상금: 공기 -' + r.delayPenalty + '일.'); }
     if (s.days <= 0) { s.days = 0; s.over = 'lose'; say('lose', '달력이 D-0이 됐어요. 공기 지연...'); }
 
     const msg = '현장 턴 → ' + (events.length ? events.map(e => e.text).join(' ') : '조용히 지나갔어요.') + (s.over ? '' : ' 이제 ' + s.turn + '턴!');
@@ -289,7 +354,7 @@
   JG.engine = {
     newGame, playCard, hit, order, endTurn,
     whyCantPlay, whyCantHit, whyCantOrder,
-    atkOf, costOf, guardIndex, protection, floors, totalFloors, nextProblem, stars, siteOf,
+    atkOf, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
     random, shuffle, eun, ga, eul, ro
   };
 })();

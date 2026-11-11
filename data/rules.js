@@ -16,6 +16,13 @@ JG.RULES = {
   stars: [10, 5]         // 준공 때 남은 공기가 10일 이상 ★3, 5일 이상 ★2, 그 아래 ★1
 };
 
+// 난이도: probAtk(문제 카드 공격 증감), delayPenalty(9턴부터 지체상금), timer(턴 시간 초. null이면 현장 기본값, 0이면 제한 없음)
+JG.DIFFICULTY = {
+  easy: { name: '편하게', probAtk: -1, delayPenalty: false, timer: 0, desc: '턴 시간 제한과 지체상금 없음, 문제 공격 -1' },
+  normal: { name: '보통', probAtk: 0, delayPenalty: true, timer: null, desc: '기본 규칙 (현장 4~5는 턴 30초)' },
+  hard: { name: '도전', probAtk: 1, delayPenalty: true, timer: 20, desc: '모든 현장 턴 20초, 문제 공격 +1' }
+};
+
 // 직급 칭호: 모은 별(준공할 때마다 받은 별의 누적)이 이 개수 이상이면 오른다
 JG.RANKS = [
   { name: '신입 기사', stars: 0 },

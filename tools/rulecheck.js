@@ -153,6 +153,98 @@ s.my[0] = { id: 'pump', atk: 3, hp: 2, ready: true, fresh: false, curing: false,
 E.hit(s, 0, 'building');
 t('1층 완성 턴 기록', s.rec.floors[0] === 4 && s.rec.floors.length === 1);
 
+// ---- 6단계: 확장 카드·문제·현장 조건·난이도 ----
+const W = (id, extra) => Object.assign({ id, atk: JG.CARDS[id].atk, hp: JG.CARDS[id].hp, ready: true, fresh: false, curing: 0, guard: !!JG.CARDS[id].guard, buff: 0, pre: false }, extra);
+const P = (id, extra) => Object.assign({ id, atk: JG.PROBLEMS[id].atk, hp: JG.PROBLEMS[id].hp, guard: !!JG.PROBLEMS[id].guard, drain: JG.PROBLEMS[id].drain || 0 }, extra);
+const same = (s, fn) => { const b = JSON.stringify(s); const r = fn(); return !r.ok && JSON.stringify(s) === b; };
+
+// 신호수: 장비 공격 +1 (두 장이어도 +1)
+s = fresh('house'); s.my[0] = W('pump'); s.my[1] = W('signal');
+t('신호수 있으면 펌프카 공격 4', E.atkOf(s, s.my[0]) === 4);
+s.my[2] = W('signal');
+t('신호수 두 장이어도 공격 4', E.atkOf(s, s.my[0]) === 4);
+t('신호수는 장비가 아닌 작업팀엔 효과 없음', E.atkOf(s, W('rebar')) === 1);
+// PC 부재팀: 비 와도 공격 그대로
+s = fresh('apart');
+t('비 오는 현장 PC 부재팀 공격 4', E.atkOf(s, W('pc')) === 4 && E.atkOf(s, W('pour')) === 1);
+// 갱폼팀: 철근공 있으면 카드 1장
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['gangform'] }); s.my[0] = W('rebar');
+const deckN = s.deck.length;
+E.playCard(s, 0, 1);
+t('갱폼팀 선행공정: 카드 1장 뽑기, 능력치 그대로', s.hand.length === 1 && s.deck.length === deckN - 1 && s.my[1].atk === 3 && s.my[1].pre);
+// 습윤양생: 고른 작업팀 체력 +3, 대상 없거나 잘못 고르면 그대로
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['wetcure'] });
+t('작업팀 없으면 습윤양생 못 씀', !!E.whyCantPlay(s, 0));
+s.my[2] = W('rebar');
+t('빈 칸을 고르면 실패하고 상태 그대로', same(s, () => E.playCard(s, 0, 1)));
+t('습윤양생: 체력 2 → 5', E.playCard(s, 0, 2).ok && s.my[2].hp === 5 && s.coins === 4);
+// 한파: 양생 2턴, 보온양생으로 풀림
+s = fresh('winter', { coins: 5, maxCoins: 5, hand: ['pour', 'warmcure'] });
+E.playCard(s, 0, 0);
+t('한파: 타설팀 양생 2턴', s.my[0].curing === 2);
+E.endTurn(s);
+t('한파: 1턴 지나도 아직 양생 중', s.my[0].curing === 1 && !s.my[0].ready && s.my[0].atk === 2);
+E.endTurn(s);
+t('한파: 2턴 지나서 양생 완료', !s.my[0].curing && s.my[0].ready && s.my[0].atk === 3);
+s = fresh('winter', { coins: 5, maxCoins: 5, hand: ['pour', 'warmcure'] });
+E.playCard(s, 0, 0); E.playCard(s, 0, null);
+t('보온양생: 한파 풀림, 양생 1턴으로, 콘크리트 +1/+1', s.condOff && s.my[0].curing === 1 && s.my[0].atk === 3 && s.my[0].hp === 4);
+// BIM 간섭검토: 예고 문제가 안 들어옴
+s = fresh('apart', { coins: 5, maxCoins: 5, hand: ['bim'] });
+const fi0 = s.fi;
+t('BIM 간섭검토 사용', E.playCard(s, 0, null).ok && s.cancelNext);
+t('취소한 뒤엔 또 못 씀 (예고 없음)', (s.hand = ['bim'], !!E.whyCantPlay(s, 0)));
+r = E.endTurn(s);
+t('BIM: 다음 문제 안 들어옴, 예고는 한 칸 넘어감', s.probs.every(p => !p) && s.fi === fi0 + 1 && !s.cancelNext && r.events.some(e => e.t === 'cancelled'));
+// 돌관작업: 모두 공격 +2, 공기 -2, 공기가 모자라면 못 씀
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['rushwork'] }); s.my[0] = W('rebar'); s.my[1] = W('form');
+E.playCard(s, 0, null);
+t('돌관작업: 공격 +2, 공기 13', E.atkOf(s, s.my[0]) === 3 && E.atkOf(s, s.my[1]) === 4 && s.days === 13);
+E.endTurn(s);
+t('돌관작업 효과는 턴이 끝나면 사라짐', E.atkOf(s, s.my[0]) === 1);
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['rushwork'], days: 2 });
+t('공기 2일이면 돌관작업 못 씀', !!E.whyCantPlay(s, 0));
+// 설계변경 대응: 고른 문제 제거
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['redesign'] }); s.probs[1] = P('slide');
+t('빈 문제 칸을 고르면 실패', same(s, () => E.playCard(s, 0, 0)));
+t('설계변경 대응: 토사 유출 제거', E.playCard(s, 0, 1).ok && !s.probs[1]);
+// 연약지반: 방호 작업팀이 없으면 공기 -1
+s = fresh('deep');
+E.endTurn(s);
+t('연약지반: 방호 없으면 공기 -1', s.days === 14);
+s = fresh('deep'); s.my[0] = W('earth');
+E.endTurn(s);
+t('연약지반: 흙막이(방호) 있으면 그대로', s.days === 15);
+// 개구부: 작업팀만 친다
+s = fresh('house'); s.probs[0] = P('opening');
+E.endTurn(s);
+t('개구부: 작업팀 없으면 달력 안 침', s.days === 15);
+s = fresh('house'); s.probs[0] = P('opening'); s.my[2] = W('earth', { guard: false });
+E.endTurn(s);
+t('개구부: 버티는 작업팀도 친다', s.my[2].hp === 2 && s.days === 15);
+// 설계변경(문제): 손패 맨 왼쪽 카드를 바꾼다
+s = fresh('house', { hand: ['drone', 'rebar'] }); s.probs[0] = P('change', { atk: 0 });
+const top = s.deck[0];
+E.endTurn(s);
+t('설계변경: 드론 측량이 덱 맨 아래로, 새 카드가 들어옴', s.hand[0] === 'rebar' && s.hand[1] === top && s.deck[s.deck.length - 1] === 'drone');
+// 자재 반입 지연: 공사비 -1
+s = fresh('house'); s.probs[0] = P('delay', { atk: 0 });
+E.endTurn(s);
+t('자재 반입 지연: 2턴 공사비 1/2', s.coins === 1 && s.maxCoins === 2);
+// 난이도
+s = E.newGame({ siteId: 'apart', seed: 1, difficulty: 'easy' }); E.endTurn(s);
+t('편하게: 균열이 공격 0', s.probs[0].atk === 0);
+s = E.newGame({ siteId: 'apart', seed: 1, difficulty: 'hard' }); E.endTurn(s);
+t('도전: 균열이 공격 2', s.probs[0].atk === 2);
+s = Object.assign(E.newGame({ siteId: 'apart', seed: 1, difficulty: 'easy' }), { turn: 8 }); E.endTurn(s);
+t('편하게: 지체상금 없음', s.turn === 9 && s.days === 15);
+// 지하층 이름
+s = fresh('deep');
+t('지하층 이름: 1층째 지하 2층, 3층째 지상 1층', E.floorName(s, 1) === '지하 2층' && E.floorName(s, 2) === '지하 1층' && E.floorName(s, 3) === '지상 1층');
+s = fresh('deep', { bricks: 22 }); s.my[0] = W('pump');
+E.hit(s, 0, 'building');
+t('5번 현장 준공 문구', s.over === 'win' && E.floorName(s, 6) === '지상 4층');
+
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');
 t('조사: 아파트를 / 타워크레인을', E.eul('장마철 아파트') === '장마철 아파트를' && E.eul('타워크레인') === '타워크레인을');
