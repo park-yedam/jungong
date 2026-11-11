@@ -1,6 +1,6 @@
 // 카드 데이터. 숫자와 문구는 여기서만 고치면 된다.
 // kind  : crew(현장에 남는 작업팀) / spell(쓰고 사라지는 공법)
-// trade : rebar(철근) formwork(형틀) concrete(콘크리트) equipment(장비) safety(안전) method(공법)
+// trade : rebar(철근) formwork(형틀) concrete(콘크리트) equipment(장비) safety(안전) steel(철골) finish(조적·방수) general(공통) method(공법)
 // band  : 카드 위 이름 띠 색 (흰 글자가 잘 보이게 공종 색보다 조금 진함)
 // text  : 카드에 보이는 효과 한 줄. 카드 폭에서 2줄을 넘으면 공격·체력 배지와 겹친다
 // term  : 카드를 길게 누르면 나오는 용어 풀이 (카드 이름이 무엇인지)
@@ -8,6 +8,9 @@
 // 키워드: guard(방호) rush(긴급투입) cure(양생: 다음 턴 시작에 오르는 수치) prerequisite(선행공정: 앞 공정 카드 id)
 //   helmet(안전모: 첫 피해 1번 무효) onOut(퇴장 효과: { draw: 뽑을 장수 }) twice(연속 망치질: 한 턴 2번, preTwice는 선행공정이 있을 때만)
 //   onPlay(등장 효과: { trades: [공종], atk, hp } 낼 때 그 공종 다른 작업팀이 얻음)
+// 카드별 효과: brickBonus(건물을 칠 때 벽돌 +n) vsLeak(누수 문제를 칠 때 공격 +n) calmProblems(문제 카드 모두 공격 -n, 겹치지 않음)
+//   leadNeighbors(양옆 작업팀 공격 +n, 겹치지 않음) comboWild(공정 순서의 다음 단계로 셈)
+//   공법: comboStep(공정 순서 1단계 진행) cureNow(양생 중인 작업팀 바로 양생 완료) coinsNow(이번 턴 코인 +n, 최대치까지) shieldUp(공기 피해 n번 막기)
 // 숙련 승급: 필드의 같은 작업팀 위에 같은 카드를 겹쳐 내면 카드 공격·체력만큼 더해져 금색 숙련 작업팀이 된다 (한 팀에 한 번)
 var JG = globalThis.JG = globalThis.JG || {};
 
@@ -154,6 +157,126 @@ JG.CARDS = {
     text: '문제 카드 하나 제거',
     term: '바뀐 설계에 맞춰 도면과 공정을 빠르게 다시 정리하는 일',
     lore: '바뀐 내용을 빨리 나눌수록 다시 시공하는 일(재시공)이 줄어든다', loreSource: ''
+  },
+
+  // ---------- 카드 확장: 건축 실무·전공 ----------
+  mason: {
+    name: '조적공', kind: 'crew', trade: 'finish', cost: 2, atk: 1, hp: 3,
+    band: '#B4533A', expansion: true, brickBonus: 1,
+    line: '줄눈 맞춰 쌓습니다!',
+    text: '건물 치면 벽돌 +1',
+    term: '벽돌·블록을 모르타르로 붙여 벽을 쌓는 기능공',
+    lore: '벽돌은 위아래 줄눈이 엇갈리게(막힌줄눈) 쌓아야 힘이 고르게 퍼진다', loreSource: ''
+  },
+  proof: {
+    name: '방수공', kind: 'crew', trade: 'finish', cost: 2, atk: 1, hp: 3,
+    band: '#B4533A', expansion: true, vsLeak: 2,
+    line: '물샐틈없이 막겠습니다!',
+    text: '누수 칠 때 공격 +2',
+    term: '지붕·지하·욕실에 물이 스미지 않게 방수층을 만드는 기능공',
+    lore: '지하 외벽은 물이 들어오는 바깥쪽에 방수층을 두는 것(외방수)이 기본이다', loreSource: ''
+  },
+  steel: {
+    name: '철골공', kind: 'crew', trade: 'steel', cost: 4, atk: 3, hp: 3,
+    band: '#5B6B7A', expansion: true, prerequisite: 'tower', preTwice: true,
+    line: '볼트 체결 완료!',
+    text: '크레인 있으면 2번 침',
+    term: '공장에서 만든 철골 기둥·보를 크레인으로 세우고 볼트로 조이는 기능공',
+    lore: '철골은 공장에서 만들어 현장에서 조립하므로 공기를 줄일 수 있다', loreSource: ''
+  },
+  welder: {
+    name: '용접공', kind: 'crew', trade: 'steel', cost: 2, atk: 2, hp: 2,
+    band: '#5B6B7A', expansion: true, onPlay: { trades: ['steel', 'equipment'], hp: 2 },
+    line: '불꽃 조심하세요!',
+    text: '등장: 철골·장비 체력+2',
+    term: '금속을 높은 열로 녹여 이어 붙이는(용접) 기능공',
+    lore: '철골 접합은 고력볼트와 용접으로 하고, 용접부는 검사로 결함을 찾는다', loreSource: ''
+  },
+  remicon: {
+    name: '레미콘 기사', kind: 'crew', trade: 'equipment', cost: 3, atk: 2, hp: 2,
+    band: '#C99A1A', expansion: true, rush: true, onPlay: { trades: ['concrete'], atk: 1 },
+    line: '레미콘 도착했습니다!',
+    text: '긴급투입 타설 공격+1',
+    term: '공장에서 비빈 굳지 않은 콘크리트(레미콘)를 드럼을 돌리며 실어 오는 트럭 기사',
+    lore: '레미콘은 비비기 시작해서 정해진 시간(기온에 따라 90~120분) 안에 타설을 끝내야 한다', loreSource: ''
+  },
+  scaffold: {
+    name: '비계공', kind: 'crew', trade: 'formwork', cost: 2, atk: 2, hp: 2,
+    band: '#B5835A', expansion: true, helmet: true,
+    line: '안전난간 확인!',
+    text: '안전모: 첫 피해 무효',
+    term: '높은 곳 작업용 발판과 통로(비계)를 짜고 해체하는 기능공',
+    lore: '비계 작업발판에는 안전난간을 달아 떨어지는 사고를 막는다', loreSource: ''
+  },
+  inspector: {
+    name: '감리원', kind: 'crew', trade: 'safety', cost: 3, atk: 0, hp: 4,
+    band: '#3E8C42', expansion: true, calmProblems: 1,
+    line: '도면대로 하셨죠?',
+    text: '문제 모두 공격 -1',
+    term: '설계도서대로 시공되는지 현장에서 확인·검토하는 기술자',
+    lore: '감리는 품질·안전·공정을 확인하고, 잘못된 시공은 바로잡도록 지시한다', loreSource: ''
+  },
+  cpm: {
+    name: '공정표 작성', kind: 'spell', trade: 'method', cost: 1,
+    band: '#5B8DEF', expansion: true, comboStep: true,
+    text: '공정 순서 1단계 진행',
+    term: '작업 순서와 기간을 그린 일정표. CPM은 가장 오래 걸리는 작업 경로를 찾는 방법',
+    lore: '주공정선(CP) 위의 작업이 늦어지면 전체 공기가 그만큼 늦어진다', loreSource: ''
+  },
+  testpiece: {
+    name: '압축강도 시험', kind: 'spell', trade: 'method', cost: 1,
+    band: '#5B8DEF', expansion: true, cureNow: true,
+    text: '양생 중인 팀 바로 완료',
+    term: '콘크리트 공시체(시험용 원기둥)를 눌러 부서질 때의 힘으로 강도를 확인하는 시험',
+    lore: '콘크리트 설계기준강도는 보통 타설하고 28일 지난 압축강도로 정한다', loreSource: ''
+  },
+  payment: {
+    name: '기성 청구', kind: 'spell', trade: 'method', cost: 0,
+    band: '#5B8DEF', expansion: true, coinsNow: 2,
+    text: '이번 턴 코인 +2',
+    term: '공사가 진행된 만큼(기성고) 공사비를 나눠 받는 것',
+    lore: '기성은 보통 달마다 공정률을 확인해 그만큼 공사비를 청구하고 받는다', loreSource: ''
+  },
+  inspect: {
+    name: '안전점검', kind: 'spell', trade: 'method', cost: 1,
+    band: '#5B8DEF', expansion: true, shieldUp: 1,
+    text: '공기 피해 1번 막기',
+    term: '작업 전·중에 위험 요소를 찾아 고치는 점검',
+    lore: '현장은 작업 전 안전점검과 TBM으로 그날의 위험을 함께 나눈다', loreSource: ''
+  },
+
+  // ---------- 카드 확장: 게임 요소 ----------
+  apprentice: {
+    name: '견습공', kind: 'crew', trade: 'general', cost: 1, atk: 1, hp: 1,
+    band: '#7A5C99', expansion: true, onOut: { draw: 1 },
+    line: '배우겠습니다!',
+    text: '퇴장 효과: 카드 1장',
+    term: '기능공 곁에서 일을 배우는 초보 작업자',
+    lore: '숙련 기능공이 견습공을 가르치며 현장 기술이 이어진다', loreSource: ''
+  },
+  excavator: {
+    name: '굴착기', kind: 'crew', trade: 'equipment', cost: 4, atk: 2, hp: 3,
+    band: '#C99A1A', expansion: true, twice: true,
+    line: '터파기 시작!',
+    text: '한 턴 2번 망치질',
+    term: '버킷으로 땅을 파고 흙을 옮기는 건설기계(백호)',
+    lore: '터파기는 흙막이를 먼저 세운 뒤 단계적으로 판다', loreSource: ''
+  },
+  foreman: {
+    name: '베테랑 반장', kind: 'crew', trade: 'general', cost: 3, atk: 2, hp: 3,
+    band: '#7A5C99', expansion: true, leadNeighbors: 1,
+    line: '다들 모여!',
+    text: '양옆 작업팀 공격 +1',
+    term: '작업팀을 이끄는 경험 많은 작업반장',
+    lore: '작업반장은 그날 작업을 나누고 안전을 함께 챙긴다', loreSource: ''
+  },
+  multi: {
+    name: '다능공', kind: 'crew', trade: 'general', cost: 2, atk: 2, hp: 2,
+    band: '#7A5C99', expansion: true, comboWild: true,
+    line: '뭐든 맡겨 주세요!',
+    text: '공정 순서 다음 단계로 셈',
+    term: '여러 공종 일을 두루 할 수 있는 기능공',
+    lore: '다능공은 공정이 바뀔 때 기다리지 않고 바로 투입할 수 있다', loreSource: ''
   }
 };
 

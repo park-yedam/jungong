@@ -2,7 +2,7 @@
 // 한 번 본 것은 도감에 쌓인다. 무대 위에 덮어 그리는 창이라 어느 화면에서나 열 수 있다.
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc;
-  const TRADE = { rebar: '철근', formwork: '형틀·가설', concrete: '콘크리트', equipment: '장비', safety: '안전', method: '공법' };
+  const TRADE = { rebar: '철근', formwork: '형틀·가설', concrete: '콘크리트', equipment: '장비', safety: '안전', steel: '철골', finish: '조적·방수', general: '공통', method: '공법' };
   let cur = null;   // { kind: 'card' | 'prob', id } 또는 { kind: 'page', page } (해설·OX처럼 직접 만든 페이지)
 
   const keywordsOf = o => ['guard', 'rush', 'cure', 'prerequisite', 'helmet', 'onOut', 'twice', 'onPlay'].filter(k => o[k] || (k === 'twice' && o.preTwice)).map(k => JG.KEYWORDS[k]);

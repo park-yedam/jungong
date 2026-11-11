@@ -397,12 +397,97 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('숙련 승급: 다른 작업팀 위에는 못 냄', !E.playCard(fresh('house', { coins: 5, hand: ['rebar'], my: [W('pump'), null, null, null] }), 0, 0).ok);
 }
 
+// ---- 카드 확장 2단계: 새 카드 15장의 효과 ----
+{
+  const W = (id, extra) => Object.assign({ id, atk: JG.CARDS[id].atk, hp: JG.CARDS[id].hp, ready: true, fresh: false, curing: 0, guard: !!JG.CARDS[id].guard, buff: 0, pre: false }, extra || {});
+  const P = (id, atk, hp, drain) => ({ id, atk, hp, guard: false, drain: drain || 0 });
+  const NEW = ['mason', 'proof', 'steel', 'welder', 'remicon', 'scaffold', 'inspector', 'cpm', 'testpiece', 'payment', 'inspect', 'apprentice', 'excavator', 'foreman', 'multi'];
+  t('새 카드 15장: 그림·풀이·효과 문구·단원이 모두 있음', NEW.every(id => JG.CARDS[id] && JG.CARDS[id].expansion && JG.CARDS[id].text && JG.CARDS[id].term && JG.CARDS[id].lore && JG.UNITS.card[id]));
+  t('새 카드 효과 문구는 기존 카드 중 가장 긴 문구(18자) 이하 (실제 2줄 여부는 화면에서 잼)', NEW.every(id => JG.CARDS[id].text.length <= 18));
+  // 조적공: 건물을 치면 벽돌 +1
+  let k = fresh('house', { my: [W('mason'), null, null, null] });
+  E.hit(k, 0, 'building');
+  t('조적공: 공격 1인데 벽돌 2칸', k.bricks === 2);
+  // 방수공: 누수 문제에만 공격 +2
+  k = fresh('house', { my: [W('proof'), W('proof'), null, null], probs: [P('leak', 1, 9, 1), P('crack', 1, 9), null, null] });
+  E.hit(k, 0, 0); E.hit(k, 1, 1);
+  t('방수공: 누수에 3 피해, 균열에는 1 피해', k.probs[0].hp === 6 && k.probs[1].hp === 8);
+  // 철골공: 타워크레인이 있을 때만 연속 망치질
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['steel', 'steel'], my: [W('tower'), null, null, null] });
+  E.playCard(k, 0, 1); k.my[0] = null; k.coins = 5; E.playCard(k, 0, 2);
+  t('철골공: 타워크레인 옆에서 낸 팀만 연속 망치질', k.my[1].twice === true && !k.my[2].twice);
+  // 용접공: 등장하면 철골·장비 작업팀 체력 +2
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['welder'], my: [W('steel'), W('pump'), W('rebar'), null] });
+  E.playCard(k, 0, 3);
+  t('용접공: 철골·장비 체력 +2, 철근은 그대로', k.my[0].hp === 5 && k.my[1].hp === 4 && k.my[2].hp === 2);
+  // 레미콘 기사: 긴급투입, 콘크리트 작업팀 공격 +1
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['remicon'], my: [W('pour'), null, null, null] });
+  E.playCard(k, 0, 1);
+  t('레미콘 기사: 바로 칠 수 있고, 타설팀 공격 +1', !E.whyCantHit(k, 1) && k.my[0].atk === 3);
+  // 비계공: 안전모
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['scaffold'] });
+  E.playCard(k, 0, 0);
+  t('비계공: 안전모를 씀', k.my[0].helmet === true);
+  // 감리원: 문제 카드 모두 공격 -1 (현장 턴 피해, 되치기, 달력)
+  k = fresh('house', { my: [W('inspector'), W('pour'), null, null], probs: [P('crack', 1, 9), P('opening', 3, 9), null, null] });
+  t('감리원: 균열이 공격 1 → 0, 개구부 3 → 2', E.probAtk(k, k.probs[0]) === 0 && E.probAtk(k, k.probs[1]) === 2);
+  E.hit(k, 1, 1);
+  t('감리원: 되치기도 약해짐 (개구부 되치기 3 → 2, 타설팀 체력 3 → 1)', !!k.my[1] && k.my[1].hp === 1);
+  k = fresh('house', { my: [W('inspector'), null, null, null], probs: [P('slide', 4, 9), null, null, null] });
+  E.endTurn(k);
+  t('감리원: 달력 피해도 줄어듦 (토사 유출 4 → 3)', k.days === 12);
+  // 공정표 작성: 공정 순서 1단계 진행, 3단계면 공정 완료
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['cpm', 'cpm'], combo: 1 });
+  E.playCard(k, 0, null);
+  const b0 = k.bricks, r2 = E.playCard(k, 0, null);
+  t('공정표 작성: 1단계씩 진행하고 공정 완료까지', k.combo === 0 && k.bricks === b0 + JG.RULES.comboBricks && r2.events.some(e => e.t === 'combo'));
+  // 압축강도 시험: 양생 중인 팀 바로 완료 (지난 턴에 들어온 팀은 바로 칠 수 있음)
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['testpiece', 'testpiece'], my: [W('pour', { curing: 2, ready: false }), W('pour', { curing: 1, ready: false, fresh: true }), null, null] });
+  t('압축강도 시험: 양생 중인 팀이 없으면 못 씀', !!E.whyCantPlay(fresh('house', { coins: 5, hand: ['testpiece'] }), 0));
+  E.playCard(k, 0, null);
+  t('압축강도 시험: 양생 끝 +1/+2, 지난 턴 팀은 바로 칠 수 있고 방금 들어온 팀은 다음 턴', k.my[0].atk === 3 && k.my[0].hp === 5 && !k.my[0].curing && !E.whyCantHit(k, 0) && !!E.whyCantHit(k, 1) && !k.my[1].curing);
+  // 기성 청구: 이번 턴 코인 +2 (최대 5까지), 가득하면 못 씀
+  k = fresh('house', { coins: 4, maxCoins: 4, hand: ['payment', 'payment'] });
+  E.playCard(k, 0, null);
+  t('기성 청구: 코인 4 → 5 (최대치까지), 가득하면 못 씀', k.coins === 5 && !!E.whyCantPlay(k, 0));
+  E.endTurn(k);
+  t('기성 청구: 다음 턴에는 원래대로', k.coins === 5 && k.maxCoins === 5);
+  // 안전점검: 다음 공기 피해 1번 막기
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['inspect'], probs: [P('crack', 1, 9), null, null, null] });
+  E.playCard(k, 0, null);
+  const r3 = E.endTurn(k);
+  t('안전점검: 균열이의 달력 피해를 막음', k.days === 15 && r3.events.some(e => e.t === 'shield'));
+  // 견습공: 퇴장 효과 카드 1장
+  k = fresh('house', { hand: [], my: [W('apprentice'), null, null, null], probs: [P('crack', 1, 9), null, null, null] });
+  E.hit(k, 0, 0);
+  t('견습공: 되치기로 퇴장하면 카드 1장', !k.my[0] && k.hand.length === 1);
+  // 굴착기: 연속 망치질
+  k = fresh('house', { my: [W('excavator', { twice: true }), null, null, null] });
+  t('굴착기: 한 턴 두 번', E.hit(k, 0, 'building').ok && E.hit(k, 0, 'building').ok && !E.hit(k, 0, 'building').ok);
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['excavator'] });
+  E.playCard(k, 0, 0);
+  t('굴착기: 낼 때 연속 망치질이 붙음', k.my[0].twice === true);
+  // 베테랑 반장: 양옆 작업팀 공격 +1 (반장 둘이 붙어도 +1)
+  k = fresh('house', { my: [W('rebar'), W('foreman'), W('rebar'), W('rebar')] });
+  t('베테랑 반장: 양옆 +1, 떨어진 팀은 그대로', E.atkOf(k, k.my[0]) === 2 && E.atkOf(k, k.my[2]) === 2 && E.atkOf(k, k.my[3]) === 1);
+  k = fresh('house', { my: [W('foreman'), W('rebar'), W('foreman'), null] });
+  t('베테랑 반장: 겹치지 않음', E.atkOf(k, k.my[1]) === 2);
+  // 다능공: 공정 순서의 다음 단계로 셈
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['multi', 'multi', 'multi'] });
+  E.playCard(k, 0, 0); E.playCard(k, 0, 1);
+  t('다능공: 철근 → 형틀 단계로 셈', k.combo === 2);
+}
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다
 {
   const SITES = ['house', 'retail', 'apart', 'winter', 'deep'], DECK = ['rebar', 'rebar', 'form', 'form', 'pour', 'pump', 'shore', 'safety', 'signal', 'earth', 'gangform', 'wetcure'];
-  const KW_DECK = ['rebar', 'rebar', 'kw_helmet', 'kw_helmet', 'kw_out', 'kw_out', 'kw_twice', 'kw_twice', 'kw_play', 'pour', 'tower', 'kw_pretwice'], DECKS = [null, DECK, KW_DECK];
+  const KW_DECK = ['rebar', 'rebar', 'kw_helmet', 'kw_helmet', 'kw_out', 'kw_out', 'kw_twice', 'kw_twice', 'kw_play', 'pour', 'tower', 'kw_pretwice'];
+  // 새 카드 덱 둘 (작업팀 위주, 공법 섞음)
+  const NEW_DECK = ['mason', 'proof', 'steel', 'tower', 'welder', 'remicon', 'scaffold', 'inspector', 'apprentice', 'excavator', 'foreman', 'multi'];
+  const NEW_DECK2 = ['rebar', 'pour', 'pour', 'cpm', 'testpiece', 'payment', 'inspect', 'mason', 'proof', 'inspector', 'foreman', 'multi'];
+  const DECKS = [null, DECK, KW_DECK, NEW_DECK, NEW_DECK2];
   let turns = 0, hits = 0, bad = [], changed = 0, withAction = 0;
   const actual = (before, s, res) => {
     const a = { probs: before.probs.map(() => []), my: before.my.map(() => null), days: before.days - s.days, lose: s.over === 'lose' };
@@ -415,7 +500,7 @@ Object.assign(JG.CARDS, TEST_CARDS);
   };
   for (let g = 0; g < 400; g++) {
     const rnd = E.random(1000 + g), pick = arr => arr[Math.floor(rnd() * arr.length)];
-    const s = E.newGame({ siteId: SITES[g % 5], seed: g + 1, deck: DECKS[Math.floor(g / 2) % 3], pledge: ['chant', null, 'inspect'][g % 3], difficulty: ['easy', 'normal', 'hard'][g % 3] });
+    const s = E.newGame({ siteId: SITES[g % 5], seed: g + 1, deck: DECKS[Math.floor(g / 2) % 5], pledge: ['chant', null, 'inspect'][g % 3], difficulty: ['easy', 'normal', 'hard'][g % 3] });
     for (let turn = 0; turn < 16 && !s.over; turn++) {
       for (let k = 0; k < 4; k++) {   // 카드 내기 (빈 칸 또는 대상 무작위)
         const h = Math.floor(rnd() * s.hand.length);
@@ -453,7 +538,7 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('현장 턴 예상 = 실제 (' + turns + '턴, 문제가 움직인 턴 ' + withAction + ')', !bad.some(b => !b.startsWith('망치질')) && turns > 2000 && withAction > 1000);
   t('망치질 예상 = 실제 (' + hits + '번)', !bad.some(b => b.startsWith('망치질')) && hits > 500);
   if (bad.length) console.log('  다른 예: ' + bad.slice(0, 3).join('\n  '));
-  console.log('  미리 보기 비교: 판 400개(시험용 키워드 카드 덱 포함), 현장 턴 ' + turns + '번(문제가 움직인 턴 ' + withAction + '), 망치질 ' + hits + '번, 다른 곳 ' + bad.length + '개');
+  console.log('  미리 보기 비교: 판 400개(시험용 키워드 카드·새 카드 덱 포함), 현장 턴 ' + turns + '번(문제가 움직인 턴 ' + withAction + '), 망치질 ' + hits + '번, 다른 곳 ' + bad.length + '개');
 }
 Object.keys(TEST_CARDS).forEach(id => delete JG.CARDS[id]);   // 시험용 카드 지우기
 

@@ -1,7 +1,10 @@
 // 준공 결과 화면 (시안 ③): 기념사진, 별, 이번 판 공정표, 칭호, 새 카드, 오늘의 현장 말
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc, E = JG.engine;
-  const TRADES = [['rebar', '철근', '#E07A3F'], ['formwork', '형틀·가설', '#B5835A'], ['concrete', '타설', '#9AA0A6'], ['equipment', '장비', '#F2C230'], ['safety', '안전', '#5BB65F']];
+  const TRADES = [['rebar', '철근', '#E07A3F'], ['formwork', '형틀·가설', '#B5835A'], ['concrete', '타설', '#9AA0A6'], ['equipment', '장비', '#F2C230'], ['safety', '안전', '#5BB65F'],
+    ['steel', '철골', '#5B6B7A'], ['finish', '조적·방수', '#B4533A'], ['general', '공통', '#9C7BB8']];
+  // 이번 판에 한 번이라도 일한 공종만 (카드 확장으로 공종이 8개라 다 그리면 넘친다)
+  const usedTrades = () => TRADES.filter(([id]) => g.rec.work.some(w => (w || []).includes(id)));
   const NOT_PEOPLE = ['pump', 'tower', 'shore', 'earth'];   // 사진에 사람으로 세우지 않는 카드 (장비, 가설물)
   let g, info, msg, today;
 
@@ -46,15 +49,16 @@
       h += '<div style="' + L.at(x, 60, w, 24) + ' box-sizing: border-box; background: #FFE08A; border: 3px solid #3B2A20; text-align: center; line-height: 18px">' + esc(label) + '</div>';
     });
 
-    TRADES.forEach(([id, name, color], i) => {
-      const y = 104 + i * 33;
+    const rows = usedTrades(), rowH = Math.min(33, Math.floor(165 / Math.max(1, rows.length)));
+    rows.forEach(([id, name, color], i) => {
+      const y = 104 + i * rowH;
       h += txt(12, y, name) + '<div aria-hidden="true" style="' + L.at(96, y + 22, 486, 3) + ' background: #E0C998"></div>';
       for (let t = 1; t <= N; t++) {
         const on = k => (g.rec.work[k - 1] || []).includes(id);
         if (!on(t) || on(t - 1)) continue;   // 이어지는 턴 묶음의 첫 턴에서만 막대를 그린다
         let len = 1;
         while (t + len <= N && on(t + len)) len++;
-        h += '<div aria-hidden="true" style="' + L.at(x0 + (t - 1) * colW + 3, y - 2, len * colW - 6, 21) + ' box-sizing: border-box; background: ' + color + '; border: 3px solid #3B2A20"></div>';
+        h += '<div aria-hidden="true" style="' + L.at(x0 + (t - 1) * colW + 3, y - 2, len * colW - 6, Math.min(21, rowH - 3)) + ' box-sizing: border-box; background: ' + color + '; border: 3px solid #3B2A20"></div>';
       }
     });
     h += txt(12, 270, '막대 = 그 공종 작업팀이 일한 턴. 양생 중인 턴은 비어요.', 'color: #5C3A1E');
@@ -64,7 +68,7 @@
   // 공정표를 읽기 프로그램용 문장으로
   function ganttAria() {
     const floors = g.rec.floors.map((t, f) => E.floorName(g, f + 1) + ' ' + t + '턴').join(', ');
-    const rows = TRADES.map(([id, name]) => {
+    const rows = usedTrades().map(([id, name]) => {
       const turns = g.rec.work.map((w, k) => (w || []).includes(id) ? k + 1 : 0).filter(Boolean);
       return name + ' ' + (turns.length ? turns.join('·') + '턴' : '없음');
     }).join(', ');

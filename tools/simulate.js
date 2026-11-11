@@ -18,7 +18,7 @@ const deckFor = site => (site.no >= 4 ? EXP_DECK : JG.STARTER_DECK);
 // 상태가 규칙을 벗어나지 않았는지 검사한다. 벗어나면 오류를 던진다.
 function check(s) {
   const bad = [];
-  if (s.coins < 0 || s.coins > s.maxCoins || s.maxCoins > R.maxCoins) bad.push('코인 ' + s.coins + '/' + s.maxCoins);
+  if (s.coins < 0 || s.coins > R.maxCoins || s.maxCoins > R.maxCoins) bad.push('코인 ' + s.coins + '/' + s.maxCoins);   // 기성 청구로 이번 턴 최대치(5)까지
   if (s.hand.length > R.handMax) bad.push('손패 ' + s.hand.length + '장');
   if (s.my.length !== R.zones || s.probs.length !== R.zones) bad.push('필드 칸 수가 바뀜');
   if (s.my.some(w => w && w.hp <= 0)) bad.push('체력 0인 작업팀이 남음');

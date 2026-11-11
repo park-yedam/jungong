@@ -59,12 +59,16 @@
   // ---------- 계산 ----------
   // 내 필드의 오라(예: 신호수 → 장비 공격 +1). 같은 공종 오라는 겹치지 않는다
   const auraAtk = (s, trade) => Math.max(0, ...s.my.map(x => { const a = x && card(x.id).aura; return a && a.trade === trade ? a.atk : 0; }));
-  // 작업팀의 지금 공격력: 기본 + 작업지시·돌관작업 + 오라 + 현장 조건(예: 집중호우면 콘크리트 -1, PC 부재는 날씨 무시)
+  // 양옆 작업팀을 이끄는 반장 (베테랑 반장 → 양옆 공격 +1, 겹치지 않음)
+  const leadAtk = (s, i) => Math.max(0, ...[s.my[i - 1], s.my[i + 1]].map(x => (x && card(x.id).leadNeighbors) || 0));
+  // 작업팀의 지금 공격력: 기본 + 작업지시·돌관작업 + 오라 + 반장 + 현장 조건(예: 집중호우면 콘크리트 -1, PC 부재는 날씨 무시)
   function atkOf(s, w) {
     const c = card(w.id), cond = conditionOf(s);
     const weather = cond && cond.tradeAtk && !c.weatherProof ? (cond.tradeAtk[c.trade] || 0) : 0;
-    return Math.max(0, w.atk + w.buff + auraAtk(s, c.trade) + weather);
+    return Math.max(0, w.atk + w.buff + auraAtk(s, c.trade) + leadAtk(s, s.my.indexOf(w)) + weather);
   }
+  // 문제 카드의 지금 공격력: 감리원이 있으면 모두 -1 (겹치지 않음)
+  const probAtk = (s, p) => Math.max(0, p.atk - Math.max(0, ...s.my.map(w => (w && card(w.id).calmProblems) || 0)));
   const guardIndex = s => s.probs.findIndex(p => p && p.guard);
   // 양옆에 안전관리자가 있으면 i번 작업팀이 받는 피해가 줄어든다
   const protection = (s, i) => Math.max(0, ...[s.my[i - 1], s.my[i + 1]].map(w => (w && card(w.id).protectNeighbors) || 0));
@@ -194,6 +198,8 @@
     if (c.target === 'problem' && !s.probs.some(Boolean)) return c.name + ': 없앨 문제 카드가 없어요.';
     if (c.cancelForecast && (!nextProblem(s) || s.cancelNext)) return c.name + ': 취소할 예고 문제가 없어요.';
     if (c.selfDays && s.days <= c.selfDays) return c.name + ': 공기가 ' + s.days + '일뿐이라 무리예요.';
+    if (c.cureNow && !s.my.some(w => w && w.curing)) return c.name + ': 양생 중인 작업팀이 없어요.';
+    if (c.coinsNow && s.coins - cost >= R().maxCoins) return c.name + ': 코인이 이미 가득해요.';
     return null;
   }
 
@@ -234,7 +240,7 @@
     if (pre && c.preTwice) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 연속 망치질!';
     const events = [{ t: 'bubble', zone: z, text: c.line }];
     if (c.onPlay) msg += onPlayEffect(s, z, c.onPlay, events);
-    msg += advanceCombo(s, c.trade, events);
+    msg += advanceCombo(s, (c.comboWild ? R().comboSteps[s.combo || 0] : c.trade), events);
     return result(true, msg, events);
   }
 
@@ -247,7 +253,7 @@
     const events = [{ t: 'bubble', zone: z, text: '숙련 승급!' }, { t: 'merge', zone: z }];
     let msg = c.name + ' 숙련 승급! 두 팀이 합쳐졌어요 (공격 ' + w.atk + ', 체력 ' + w.hp + ').';
     if (c.onPlay) msg += onPlayEffect(s, z, c.onPlay, events);
-    msg += advanceCombo(s, c.trade, events);
+    msg += advanceCombo(s, (c.comboWild ? R().comboSteps[s.combo || 0] : c.trade), events);
     return result(true, msg, events);
   }
 
@@ -274,7 +280,26 @@
       parts.push('이번 턴 모두 공격 +' + c.teamAtk + ', 공기 -' + c.selfDays + '일');
     }
     if (c.remove) { parts.push(problem(s.probs[z].id).name + ' 제거'); s.probs[z] = null; events.push({ t: 'solved', zone: z }); }
-    return result(true, c.name + '! ' + parts.join(', ') + '.', events);
+    if (c.cureNow) {   // 압축강도 시험: 양생 중인 작업팀이 바로 양생을 마친다 (이번 턴에 들어온 팀은 다음 턴부터 침)
+      s.my.forEach((w, k) => {
+        if (!w || !w.curing) return;
+        const cure = card(w.id).cure;
+        w.curing = 0; w.atk += cure.atk; w.hp += cure.hp;
+        if (!w.fresh) w.ready = true;
+        events.push({ t: 'cured', zone: k, atk: cure.atk, hp: cure.hp });
+      });
+      parts.push('양생 완료 ' + events.filter(e => e.t === 'cured').length + '팀');
+    }
+    if (c.coinsNow) {   // 기성 청구: 이번 턴 코인 (최대치까지)
+      const got = Math.min(R().maxCoins, s.coins + c.coinsNow) - s.coins;
+      s.coins += got;
+      events.push({ t: 'coins', n: got });
+      parts.push('이번 턴 코인 +' + got);
+    }
+    if (c.shieldUp) { s.shield += c.shieldUp; parts.push('다음 공기 피해 ' + c.shieldUp + '번을 막아요'); }
+    let msg = c.name + '!' + (parts.length ? ' ' + parts.join(', ') + '.' : '');
+    if (c.comboStep) msg += advanceCombo(s, R().comboSteps[s.combo || 0], events);   // 공정표 작성: 공정 순서 1단계 진행
+    return result(true, msg, events);
   }
 
   // ---------- 내 턴: 망치질 ----------
@@ -297,7 +322,8 @@
   function hit(s, i, target) {
     const why = whyCantHit(s, i);
     if (why) return fail(why);
-    const w = s.my[i], c = card(w.id), a = atkOf(s, w), gi = guardIndex(s);
+    const w = s.my[i], c = card(w.id), gi = guardIndex(s);
+    let a = atkOf(s, w);
     const guardName = gi >= 0 ? problem(s.probs[gi].id).name : '';
 
     if (target === 'building') {
@@ -305,6 +331,7 @@
       mark(s);
       const before = floors(s);
       spend(w);
+      a += c.brickBonus || 0;   // 조적공: 벽돌 +1
       const events = [{ t: 'bubble', zone: i, text: '통통!' }, { t: 'bricks', zone: i, n: a }];
       build(s, a, events);
       let msg = '통통! ' + ga(c.name) + ' 벽돌 ' + a + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').';
@@ -317,7 +344,8 @@
     if (!p) return fail('문제 카드나 건물을 골라 주세요.');
     if (gi >= 0 && !p.guard) return fail('방호(' + guardName + ')부터 치워야 해요!');
     mark(s);
-    const pname = problem(p.id).name, raw = Math.max(0, p.atk - protection(s, i));
+    if (c.vsLeak && p.drain) a += c.vsLeak;   // 방수공: 누수 문제에 공격 +2
+    const pname = problem(p.id).name, raw = Math.max(0, probAtk(s, p) - protection(s, i));
     p.hp -= a;
     const back = hurt(w, raw), helmet = raw > 0 && back === 0;
     spend(w);
@@ -362,7 +390,7 @@
     // 달력(내 공기)이 받는 피해. 안전 구호 다짐이 있으면 첫 피해 1번을 막는다. from: 친 문제 칸 번호 (화면 연출용, 현장 조건이면 없음)
     const hitCalendar = (n, who, from) => {
       if (n <= 0) return;
-      if (s.shield > 0) { s.shield -= 1; say('shield', who + '의 피해를 안전 구호가 막았어요.', { from }); return; }
+      if (s.shield > 0) { s.shield -= 1; say('shield', who + '의 피해를 안전 대비(안전 구호·안전점검)가 막았어요.', { from }); return; }
       s.days -= n; say('calendar', who + ': 공기 -' + n + '일.', { n, from });
     };
 
@@ -377,12 +405,12 @@
     // 2. 문제 카드가 차례로 친다. 대상: 방호 작업팀 → 한 번에 퇴장시킬 수 있는 작업팀 → 달력
     //    (작업팀만 치는 문제는 달력 대신 첫 작업팀, 작업팀이 없으면 쉰다)
     s.probs.forEach((p, pi) => {
-      if (!p || p.atk <= 0) return;
-      const d = problem(p.id), dmgTo = k => Math.max(0, p.atk - protection(s, k));
+      if (!p || probAtk(s, p) <= 0) return;
+      const d = problem(p.id), dmgTo = k => Math.max(0, probAtk(s, p) - protection(s, k));
       let ti = s.my.findIndex(w => w && w.guard);
       if (ti < 0) ti = s.my.findIndex((w, k) => w && !w.helmet && w.hp <= dmgTo(k));
       if (ti < 0 && d.workersOnly) ti = s.my.findIndex(Boolean);
-      if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name, pi); return; }
+      if (ti < 0) { if (!d.workersOnly) hitCalendar(probAtk(s, p), d.name, pi); return; }
       const w = s.my[ti], wname = card(w.id).name, raw = dmgTo(ti), dmg = hurt(w, raw), helmet = raw > 0 && dmg === 0;
       const back = atkOf(s, w);
       p.hp -= back;   // 작업팀은 맞으면서 자기 공격력만큼 되친다
@@ -471,7 +499,7 @@
   JG.engine = {
     newGame, mulligan, playCard, hit, order, endTurn, preview, previewHit,
     whyCantPlay, whyCantHit, whyCantOrder,
-    atkOf, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
+    atkOf, probAtk, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
     random, shuffle, eun, ga, eul, ro, ieyo
   };
 })();

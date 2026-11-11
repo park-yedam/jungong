@@ -138,6 +138,7 @@
     else if (e.t === 'coinDrain') { pop(COIN[0], COIN[1], '-' + e.n); fx.shake(coinsEl()); }
     else if (e.t === 'bricks') { const b = fx.rectOf(at('building')); pop(b.x + b.w / 2, Math.max(60, b.y - 30), '벽돌 +' + e.n, GOLD, 36); }   // 건물 위 (층 완성 알림판과 겹치지 않게)
     else if (e.t === 'heal') pop(ZX[e.zone] + 90, MY_Y, '+' + e.n, GREEN);
+    else if (e.t === 'coins') pop(COIN[0], COIN[1], '+' + e.n, GREEN);   // 기성 청구
     else if (e.t === 'cured') pop(ZX[e.zone] + 90, MY_Y, '+' + e.atk + '/+' + e.hp, GREEN, 32);
     else if (e.t === 'floor' || e.t === 'win') {
       const b = fx.rectOf(at('building'));
@@ -235,7 +236,7 @@
     }
     if (selWorker() === null) {
       const p = g.probs[i], d = p && JG.PROBLEMS[p.id];
-      ui.msg = p ? d.name + ': 공격 ' + p.atk + ', 체력 ' + p.hp + '. ' + d.tip : '다음 턴에 예고된 문제 카드가 들어올 자리예요.';
+      ui.msg = p ? d.name + ': 공격 ' + E.probAtk(g, p) + ', 체력 ' + p.hp + '. ' + d.tip : '다음 턴에 예고된 문제 카드가 들어올 자리예요.';
       return;
     }
     const w = selWorker(), res = E.hit(g, w, i);
@@ -470,7 +471,7 @@
       const same = merged.find(m => m.to === a.to);
       if (same) same.n += a.n; else merged.push({ to: a.to, n: a.n });
     });
-    const parts = merged.map(a => a.to === 'calendar' ? '달력 -' + a.n + '일' : a.to === 'shield' ? '안전 구호가 막음'
+    const parts = merged.map(a => a.to === 'calendar' ? '달력 -' + a.n + '일' : a.to === 'shield' ? '달력 막음 (안전 대비)'
       : JG.CARDS[s.my[a.to].id].name + (a.n ? ' -' + a.n : ' 막음') + (pv.my[a.to].out && last[a.to] === i ? ' 퇴장' : ''));   // 0이면 안전모·안전관리자가 막음
     return parts.map(p => '→ ' + p).join('\n');
   }
@@ -547,12 +548,12 @@
       const label = h ? hitText(h) : p && pv ? intentText(s, pv, i) : '';
       return {
         x: ZX[i], click: 'prob:' + i, info: p ? 'prob:' + p.id : '',
-        aria: p ? d.name + ', 공격 ' + p.atk + ', 체력 ' + Math.max(0, p.hp) + (label ? '. ' + (h ? '' : '다음 현장 턴 ') + label.replace(/→ /g, '').replace(/\n/g, ', ') : '') + (target ? (probMode ? '. 눌러서 ' + sc.name : '. 눌러서 망치질') : '') : '문제 카드 자리',
+        aria: p ? d.name + ', 공격 ' + E.probAtk(s, p) + ', 체력 ' + Math.max(0, p.hp) + (label ? '. ' + (h ? '' : '다음 현장 턴 ') + label.replace(/→ /g, '').replace(/\n/g, ', ') : '') + (target ? (probMode ? '. 눌러서 ' + sc.name : '. 눌러서 망치질') : '') : '문제 카드 자리',
         occupied: !!p, empty: !p, emptyText: '문제 자리', emptyColor: '#8B5A2B',
         bg: p ? '#D7A26C' : 'transparent',
         border: p ? '3px solid #E85D3A' : '3px dashed #B07A47',
         outline: target ? '3px solid #7BD389' : '3px solid transparent', anim: target ? PULSE : 'none',
-        shadow: p ? SP[p.id] : '', spriteTop: 36, name: p ? d.name : '', atk: p ? p.atk : 0, hp: p ? Math.max(0, p.hp) : 0,
+        shadow: p ? SP[p.id] : '', spriteTop: 36, name: p ? d.name : '', atk: p ? E.probAtk(s, p) : 0, hp: p ? Math.max(0, p.hp) : 0,
         tag: p ? probTag(p) : '', tagColor: '#8B3A1E', bob: 'none',
         hasBubble: false, bubble: '', bx: 0,
         label, labelBg: h ? (h.solved ? '#23602A' : '#5C3A1E') : '#B83E3C', labelSize: labelSize(label), labelAlign: 'left: 50%; transform: translateX(-50%)'
@@ -611,7 +612,7 @@
       comboBricks: R.comboBricks,
       deckText: s.deck.length ? s.deck.length + '장 남음' : '다 씀!', deckColor: s.deck.length ? '#5C3A1E' : '#B83E3C',
       pileAria: '자재 더미, ' + (s.deck.length ? s.deck.length + '장 남음' : '다 씀. 턴마다 공기 -' + R.emptyDeckDays + '일') + '. 눌러서 남은 자재 보기',
-      probZones, myZones, hand, coins, coinText: s.coins + '/' + s.maxCoins,
+      probZones, myZones, hand, coins, coinText: s.coins + '/' + Math.max(s.maxCoins, s.coins),
       daysText: 'D-' + s.days, daysColor: s.days <= 5 ? '#B83E3C' : '#3B2A20',
       daysNote: pv && pv.lose ? '이대로면 공기 지연!' : pv && pv.days > 0 ? '다음 현장 턴 -' + pv.days + '일' : '남은 날짜',
       daysNoteColor: pv && pv.days > 0 ? '#B83E3C' : '#5C3A1E',
