@@ -5,10 +5,10 @@
   let target = null, site = null, msg = '';   // target: 대전에 넘길 현장 ({ siteId } 또는 { daily: true })
 
   JG.screens.tbm = {
-    // arg: { siteId } 현장 1~5, { daily: true } 오늘의 데일리 현장
+    // arg: { siteId } 현장 1~5, { daily: true } 오늘의 데일리 현장, { scenario: 코드 } 수업용 현장
     enter(arg) {
-      target = arg.daily ? { daily: true } : { siteId: arg.siteId };
-      site = arg.daily ? JG.daily.today() : JG.SITES.find(s => s.id === arg.siteId);
+      target = arg.daily ? { daily: true } : arg.scenario ? { scenario: arg.scenario } : { siteId: arg.siteId };
+      site = arg.daily ? JG.daily.today() : arg.scenario ? JG.scenario.siteFor(JG.scenario.decode(arg.scenario)) : JG.SITES.find(s => s.id === arg.siteId);
       msg = '아침 TBM이에요. ' + (arg.daily ? '오늘의 데일리 현장은 ' + JG.engine.ieyo(site.name) + '. ' : '') + '오늘의 다짐을 하나 골라 주세요. 고른 다짐은 이번 판 내내 적용돼요.';
       JG.progress.seeSlang('dandori');   // 오늘의 현장 말은 도감에 저장
     },

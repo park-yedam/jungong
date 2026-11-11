@@ -18,20 +18,7 @@
     return i + 1 < JG.SITES.length && JG.progress.unlocked(i + 1) ? JG.SITES[i + 1].id : null;
   }
 
-  // 데일리 결과를 글로 복사 (클립보드가 막혀 있으면 옛 방식으로)
-  function copyText(text) {
-    const old = () => {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      let ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      ta.remove();
-      return ok;
-    };
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, old);
-    return Promise.resolve(old());
-  }
+  const isScenario = () => !!site().scenario;
 
   // 스프라이트 크기 (점 단위 → px)
   function spriteSize(name) {
@@ -88,7 +75,7 @@
     const R = JG.RANKS, up = info.rank > info.rankBefore, next = R[info.rank + 1];
     return txt(12, 12, up ? '칭호 승진! (' + R[info.rankBefore].name + ' →)' : '지금 칭호', 'color: #B83E3C')
       + txt(12, 38, R[info.rank].name, 'font-size: 32px; line-height: 32px')
-      + txt(12, 82, '모은 별 ' + info.total + '개 (이번 판 +' + info.stars + ')', 'color: #5C3A1E')
+      + txt(12, 82, '모은 별 ' + info.total + '개 ' + (info.counted === false ? '(수업 현장은 기록 안 함)' : '(이번 판 +' + info.stars + ')'), 'color: #5C3A1E')
       + txt(12, 102, next ? '다음 칭호: ' + next.name + ' (별 ' + next.stars + '개)' : '가장 높은 칭호예요!', 'color: #5C3A1E');
   }
 
@@ -99,7 +86,7 @@
     if (!list.length) {
       return h + txt(12, 40, '이번에는 없어요', 'font-size: 32px; line-height: 32px')
         + '<p style="' + L.at(12, 82, 264) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">'
-        + (isDaily() ? '데일리 현장은 카드 대신 별을 모아요.' : '현장을 처음 준공하면 확장 카드를 받아요.') + '</p>';
+        + (isScenario() ? '수업 현장은 연습용이라 카드와 별을 주지 않아요.' : isDaily() ? '데일리 현장은 카드 대신 별을 모아요.' : '현장을 처음 준공하면 확장 카드를 받아요.') + '</p>';
     }
     const box = (id, x) => { const [sw, sh] = spriteSize(id); return '<div aria-hidden="true" style="' + L.at(x, 36, 66, 84) + ' box-sizing: border-box; ' + L.PAPER + '">' + L.sprite(id, Math.round((60 - sw) / 2), Math.round((78 - sh) / 2)) + '</div>'; };
     if (list.length === 1) {
@@ -147,7 +134,7 @@
       today = d.getFullYear() + '.' + pad2(d.getMonth() + 1) + '.' + pad2(d.getDate());
       JG.progress.seeSlang('shimai');
       msg = '준공! ' + (isDaily() ? '오늘의 데일리 현장 ' : '') + E.eul(site().name) + ' ' + g.turn + '턴 만에 다 올렸어요. 별 ' + info.stars + '개.'
-        + (isDaily() ? ' 결과 복사를 눌러 친구와 별을 비교해 보세요.' : '')
+        + (isDaily() ? ' 결과 복사를 눌러 친구와 별을 비교해 보세요.' : '') + (isScenario() ? ' 수업 현장은 연습용이라 별이 기록되지 않아요.' : '')
         + ((info.rewards || []).length ? ' 새 카드 ' + E.eul(info.rewards.map(id => JG.CARDS[id].name).join(', ')) + ' 받았어요.' : '')
         + (info.rank > info.rankBefore ? ' 칭호가 ' + E.ro(JG.RANKS[info.rank].name) + ' 올랐어요!' : '');
     },
@@ -156,13 +143,19 @@
     click(act) {
       JG.sound.play('tick');
       if (act === 'next') JG.app.show('tbm', { siteId: nextSiteId() });
-      else if (act === 'restart') JG.app.show('tbm', isDaily() ? { daily: true } : { siteId: g.siteId });
+      else if (act === 'restart') JG.app.show('tbm', isDaily() ? { daily: true } : isScenario() ? { scenario: site().code } : { siteId: g.siteId });
       else if (act === 'sites') JG.app.show('sites');
       else if (act === 'complex') JG.app.show('complex');
       else if (act === 'photo') { savePhoto(); msg = '기념사진을 PNG 파일로 저장했어요. 다운로드 폴더를 확인해 주세요.'; }
+      else if (act === 'copycode') {
+        const c = site().code;
+        JG.copyText(c).then(ok => { msg = ok ? '복사했어요: 코드 ' + c + '. 같은 현장을 나눠 보세요.' : '복사가 막혀 있어요. 코드 ' + c + ' 여섯 글자를 옮겨 적어 주세요.'; JG.app.render(); });
+      }
+      else if (act === 'lesson') JG.info.showPage(JG.lesson.lessonPage(g));   // 수업용 해설
+      else if (act === 'ox') JG.info.showPage(JG.lesson.oxPage(g));           // 용어 OX 3문제
       else if (act === 'share') {
         const text = JG.daily.shareText(site(), g, (JG.DIFFICULTY[g.diff] || JG.DIFFICULTY.normal).name);
-        copyText(text).then(ok => {
+        JG.copyText(text).then(ok => {
           msg = ok ? '결과를 복사했어요. 메신저에 붙여 넣어 보세요: ' + text.replace(/\n/g, ' / ') : '복사가 막혀 있어요. 이 글을 옮겨 적어 주세요: ' + text.replace(/\n/g, ' / ');
           JG.app.render();
         });
@@ -191,14 +184,16 @@
       h += '<div style="' + L.at(24, 438, 288, 132) + ' box-sizing: border-box; ' + L.PAPER + '">' + rankPanel() + '</div>';
       h += '<div style="' + L.at(336, 438, 288, 132) + ' box-sizing: border-box; ' + L.PAPER + '">' + cardPanel() + '</div>';
       h += '<div style="' + L.at(24, 588, 600, 48) + ' box-sizing: border-box; ' + L.PAPER + '">'
-        + txt(12, 13, '오늘의 현장 말', 'color: #8B3A1E') + txt(156, 13, sl.said + ' → ' + sl.proper) + txt(330, 13, '(도감에 저장됨)', 'color: #5C3A1E') + '</div>';
+        + txt(12, 13, '오늘의 현장 말', 'color: #8B3A1E') + txt(150, 13, sl.said + ' → ' + sl.proper)
+        + '<button type="button" data-act="lesson" style="' + L.at(345, 3, 120, 36) + ' ' + L.BTN + '; ' + L.WOOD + '; color: #FFFFFF; ' + L.OUT1 + '">해설</button>'
+        + '<button type="button" data-act="ox" style="' + L.at(471, 3, 120, 36) + ' ' + L.BTN + '; ' + L.WOOD + '; color: #FFFFFF; ' + L.OUT1 + '">용어 OX</button></div>';
 
       const green = L.GREEN + '; font-size: 32px; line-height: 32px; color: #FFFFFF; ' + L.OUT2;
       const wood = L.WOOD + '; color: #FFFFFF; ' + L.OUT1;
       // [다음 현장 또는 단지로] [다시 하기] [단지로 / 현장 고르기 / 데일리면 결과 복사] [사진 저장]
       h += button(next ? 'next' : 'complex', 24, 192, next ? '다음 현장' : '단지로', green);
       h += button('restart', 228, 120, '다시 하기', wood);
-      h += isDaily() ? button('share', 360, 120, '결과 복사', L.PAPER) : button(next ? 'complex' : 'sites', 360, 120, next ? '단지로' : '현장 고르기', L.PAPER);
+      h += isScenario() ? button('copycode', 360, 120, '코드 복사', L.PAPER) : isDaily() ? button('share', 360, 120, '결과 복사', L.PAPER) : button(next ? 'complex' : 'sites', 360, 120, next ? '단지로' : '현장 고르기', L.PAPER);
       h += button('photo', 492, 120, '사진 저장', L.PAPER);
       h += '</div>';
       return h + '</div>';

@@ -61,6 +61,11 @@
       JG.save.write();
       return { stars, first, rewards: [], daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },
+    // 수업용 현장(시나리오 코드)은 연습용: 별·칭호·카드를 바꾸지 않는다
+    recordScenario(stars) {
+      const d = JG.save.data, r = JG.progress.rankOf(d.stars);
+      return { stars, first: false, rewards: [], scenario: true, counted: false, totalBefore: d.stars, total: d.stars, rankBefore: r, rank: r };
+    },
     // 자재 창고에서 쓸 수 있는 카드: 기본 카드 + 받은 확장 카드
     owned: () => Object.keys(JG.CARDS).filter(id => !JG.CARDS[id].expansion || JG.save.data.cards.includes(id)),
     seeSlang(id) {
@@ -92,6 +97,28 @@
     sprite: (name, x, y) => '<span aria-hidden="true" style="display: block; position: absolute; left: ' + x + 'px; top: ' + y + 'px; width: 3px; height: 3px; box-shadow: ' + JG.SPRITES[name] + '"></span>'
   };
 
+  // 글을 클립보드에 복사 (데일리 결과, 시나리오 코드). 클립보드가 막혀 있으면 옛 방식으로. 성공하면 true
+  JG.copyText = text => {
+    const old = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+      return ok;
+    };
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, old);
+    return Promise.resolve(old());
+  };
+
+  // 현장소장 그림: 용어 OX를 다 맞히면 금색 안전모 (흰 안전모 색 세 가지만 금색으로 바꾼다)
+  JG.bossSprite = () => {
+    if (JG.save.data.helmet !== 'gold') return 'boss';
+    if (!JG.SPRITES.boss_gold) JG.SPRITES.boss_gold = JG.SPRITES.boss.replace(/#F4F1E8/g, '#F7C948').replace(/#FFFFFF/g, '#FFF3B0').replace(/#CFC8B8/g, '#C99A1A');
+    return 'boss_gold';
+  };
+
   // ---------- 화면 전환과 그리기 ----------
   let screen = null;
   JG.app = {
@@ -112,7 +139,12 @@
       JG.sound.music(screen.music ? screen.music() : 'day');
       const msg = infoOpen ? JG.info.msg() : (screen.msg ? screen.msg() : '');
       if (live.textContent !== msg) live.textContent = msg;
-      const target = infoOpen ? 'info-close' : (focused === 'info-close' ? infoOpener : focused);
+      if (infoOpen) {   // 창 안에 고를 버튼(OX 등)이 있으면 그것, 없으면 닫기에 초점
+        const el = stage.querySelector('[role=dialog] button[data-act]:not([data-act="info-close"])') || stage.querySelector('button[data-act="info-close"]');
+        if (el) el.focus();
+        return;
+      }
+      const target = focused === 'info-close' ? infoOpener : focused;
       if (target) { const el = stage.querySelector('button[data-act="' + target + '"]'); if (el) el.focus(); }
     }
   };
@@ -132,8 +164,10 @@
     const el = e.target.closest('[data-act]');
     if (!el || !screen) return;
     const parts = el.dataset.act.split(':');
-    if (JG.info.isOpen()) {   // 풀이 창이 열려 있으면 닫기만 받는다
-      if (parts[0] === 'info-close') { JG.info.close(); JG.app.render(); }
+    if (JG.info.isOpen()) {   // 풀이 창이 열려 있으면 닫기, 또는 창 안의 버튼(OX 등)만 받는다
+      if (parts[0] === 'info-close') JG.info.close();
+      else JG.info.click(parts[0], Number(parts[1]));
+      JG.app.render();
       return;
     }
     if (parts[0] === 'info') { openInfo({ dataset: { info: parts.slice(1).join(':'), act: el.dataset.act } }); return; }   // 도감 칸 누르기

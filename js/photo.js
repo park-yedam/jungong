@@ -58,7 +58,7 @@
     CONFETTI.forEach(([x, y, c]) => fill(x, y, 6, 6, c));
 
     // 인물: 가운데 현장소장, 이번 판 작업팀이 가까운 자리부터 왼쪽·오른쪽 번갈아 선다 (4px 점으로 크게)
-    const order = [[3, 'boss']].concat(o.crew.slice(0, 5).map((id, i) => [[2, 4, 1, 5, 0][i], id]));
+    const order = [[3, JG.bossSprite()]].concat(o.crew.slice(0, 5).map((id, i) => [[2, 4, 1, 5, 0][i], id]));
     order.forEach(([slot, id]) => {
       fill(SLOTS[slot] + 8, 510, 56, 8, 'rgba(59, 42, 32, 0.25)');
       sprite(id, SLOTS[slot], 418, 4);

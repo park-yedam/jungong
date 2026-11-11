@@ -23,11 +23,13 @@
   // arg: { siteId } 또는 { daily: true }. 데일리 현장은 날짜 시드로 섞어 같은 덱이면 누구나 같은 순서로 뽑는다
   function newGameFor(arg) {
     const d = JG.save.data, deck = d.deck && d.deck.length === R.deckSize ? d.deck : null;   // 자재 창고에서 고른 덱
-    const site = arg.daily ? JG.daily.today() : undefined;
+    // 수업용 현장도 코드로 정해진 시드라 같은 덱이면 반 전체가 같은 순서로 뽑는다
+    const site = arg.daily ? JG.daily.today() : arg.scenario ? JG.scenario.siteFor(JG.scenario.decode(arg.scenario)) : undefined;
     return E.newGame({ siteId: arg.siteId, site, pledge: arg.pledge, seed: site ? site.seed : Date.now() % 1000000 + 1, deck, difficulty: d.settings.difficulty });
   }
   const isDaily = () => !!(g.site && g.site.daily);
-  const tbmTarget = () => (isDaily() ? { daily: true } : { siteId: g.siteId });
+  const isScenario = () => !!(g.site && g.site.scenario);
+  const tbmTarget = () => (isDaily() ? { daily: true } : isScenario() ? { scenario: g.site.code } : { siteId: g.siteId });
   function begin(state, prefix) {
     g = state;
     ui = { sel: null, bubble: null, replay: null, recorded: !!state.over };
@@ -43,7 +45,8 @@
   function after() {
     if (g.over && !ui.recorded) {
       ui.recorded = true;
-      if (g.over === 'win') ui.result = isDaily() ? JG.progress.recordDaily(g.site.dateKey, E.stars(g)) : JG.progress.record(g.siteId, E.stars(g));
+      if (g.over === 'win') ui.result = isDaily() ? JG.progress.recordDaily(g.site.dateKey, E.stars(g))
+        : isScenario() ? JG.progress.recordScenario(E.stars(g)) : JG.progress.record(g.siteId, E.stars(g));
     }
     g.rec.cards.forEach(id => { if (JG.CARDS[id].slang) JG.progress.seeSlang(JG.CARDS[id].slang); });
     g.probs.forEach(p => { if (p && JG.PROBLEMS[p.id].slang) JG.progress.seeSlang(JG.PROBLEMS[p.id].slang); });
@@ -224,6 +227,7 @@
       if (act === 'exit') { JG.app.show(JG.app.hub); return; }
       if (act === 'sites') { JG.app.show('sites'); return; }
       if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
+      if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
       if (g.over) return;
       ui.bubble = null;
       if (act === 'card') pickCard(n);
@@ -245,12 +249,13 @@
     return '';
   }
 
-  // 끝 창 버튼: 준공이면 [결과 보기] (다음 현장·다시 하기는 결과 화면에서), 공기 지연이면 [다시 하기] [현장 고르기]
+  // 끝 창 버튼: 준공이면 [결과 보기] (다음 현장·다시 하기는 결과 화면에서), 공기 지연이면 [다시 하기] [해설 보기] [현장 고르기]
   function overButtons() {
     if (g.over === 'win') return [{ act: 'result', label: '준공 결과 보기', x: 135, w: 300, primary: true }];
     return [
-      { act: 'restart', label: '다시 하기', x: 36, w: 240, primary: true },
-      { act: 'sites', label: '현장 고르기', x: 294, w: 240 }
+      { act: 'restart', label: '다시 하기', x: 13, w: 220, primary: true },
+      { act: 'lesson', label: '해설 보기', x: 245, w: 150 },
+      { act: 'sites', label: '현장 고르기', x: 407, w: 150 }
     ];
   }
 

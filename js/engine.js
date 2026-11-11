@@ -94,8 +94,8 @@
       orderUsed: false, shield: pledge.shield || 0, equipDiscount: pledge.equipDiscount || 0,
       condOff: false, cancelNext: false,
       over: null,
-      // 결과 화면용 기록: work[턴-1] = 그 턴에 일한 공종들, floors[층-1] = 완성한 턴, cards = 낸 카드 id
-      rec: { work: [], floors: [], cards: [] }
+      // 결과 화면용 기록: work[턴-1] = 그 턴에 일한 공종들, floors[층-1] = 완성한 턴, cards = 낸 카드 id, probs = 나온 문제 id
+      rec: { work: [], floors: [], cards: [], probs: [] }
     };
   }
 
@@ -318,6 +318,7 @@
     else if (next && empty >= 0) {
       const d = problem(next);
       s.probs[empty] = { id: next, atk: Math.max(0, d.atk + diffOf(s).probAtk), hp: d.hp, guard: !!d.guard, drain: d.drain || 0 };
+      if (s.rec.probs && !s.rec.probs.includes(next)) s.rec.probs.push(next);   // 7단계 전에 저장된 판은 칸이 없다
       say('newProblem', '새 문제: ' + d.name + '.', { zone: empty, id: next });
     }
     s.cancelNext = false;

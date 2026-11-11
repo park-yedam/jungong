@@ -2,7 +2,7 @@
 // 실행: node tools\rulecheck.js
 const path = require('path');
 const root = path.join(__dirname, '..');
-['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'js/daily.js'].forEach(f => require(path.join(root, f)));
+['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'data/units.js', 'js/daily.js', 'js/scenario.js', 'js/lesson.js'].forEach(f => require(path.join(root, f)));
 const JG = globalThis.JG, E = JG.engine;
 let pass = 0, failN = 0;
 const t = (name, cond) => { if (cond) pass++; else { failN++; console.log('실패: ' + name); } };
@@ -264,6 +264,31 @@ const s2 = JSON.parse(JSON.stringify(s));
 E.endTurn(s2);
 t('저장했다 불러온 데일리 판도 진행됨 (예고대로 균열이)', s2.turn === 2 && s2.probs[0] && s2.probs[0].id === 'crack');
 t('같은 날 같은 덱이면 손패도 같음', JSON.stringify(E.newGame({ site: d1, seed: d1.seed }).hand) === JSON.stringify(s.hand));
+
+// ---- 8단계: 시나리오 코드, 해설, 용어 OX ----
+const SC = JG.scenario, U = JG.UNITS;
+t('모든 카드·문제·키워드·현장 조건에 단원이 있음', Object.keys(JG.CARDS).every(id => U.order.includes(U.card[id])) && Object.keys(JG.PROBLEMS).every(id => U.order.includes(U.prob[id]))
+  && Object.keys(JG.KEYWORDS).every(k => U.order.includes(U.keyword[k])) && Object.keys(JG.CONDITIONS).every(c => U.order.includes(U.condition[c]) && JG.CONDITIONS[c].lore));
+const sco = { condition: 'cold', bricks: 16, problems: ['crack', 'opening', 'slide'], turnSeconds: 30, seed: 1234 };
+const code = SC.encode(sco), dec = SC.decode(code);
+t('시나리오 코드 6글자', /^[0-9A-Z]{6}$/.test(code));
+t('코드를 풀면 원래 설정', dec && dec.condition === 'cold' && dec.bricks === 16 && dec.problems.join() === 'crack,opening,slide' && dec.turnSeconds === 30 && dec.seed === 1234);
+t('소문자·띄어쓰기도 읽음', JSON.stringify(SC.decode(' ' + code.toLowerCase().slice(0, 3) + '-' + code.toLowerCase().slice(3))) === JSON.stringify(dec));
+t('한 글자 틀리면 대부분 걸러냄 (100개 중 85개 이상)', Array.from({ length: 100 }, (_, k) => { const c = SC.encode(Object.assign({}, sco, { seed: k })); return SC.decode(c.slice(0, 2) + (c[2] === '7' ? '8' : '7') + c.slice(3)); }).filter(x => !x).length >= 85);
+t('빈 코드·짧은 코드·긴 코드는 null', SC.decode('') === null && SC.decode('ABC') === null && SC.decode('ABCDEFG') === null);
+t('헷갈리는 글자 O→0, I·L→1', (() => { const c = SC.encode(Object.assign({}, sco, { seed: 0 })); return SC.decode(c.replace(/0/g, 'O').replace(/1/g, 'I')) !== null; })());
+const sSite = SC.siteFor(dec);
+t('같은 코드면 같은 현장 (문제 순서까지)', JSON.stringify(sSite) === JSON.stringify(SC.siteFor(SC.decode(code))) && sSite.forecast.length === 8 && sSite.forecast.every(id => sco.problems.includes(id)) && sSite.forecast[0] === 'crack');
+s = E.newGame({ site: sSite, seed: sSite.seed }); E.endTurn(s); E.endTurn(s);
+t('수업 현장 판 진행 (한파, 벽돌 16칸)', s.totalBricks === 16 && E.conditionOf(s).name === '한파' && s.rec.probs.length >= 1);
+const g8 = Object.assign(E.newGame({ siteId: 'apart', seed: 2 }), { rec: { work: [], floors: [], cards: ['rebar', 'pour', 'shore'], probs: ['crack', 'noise'] } });
+const cs = JG.lesson.concepts(g8), flat = cs.flatMap(x => x.items.map(i => x.unit + ':' + i.name));
+t('해설: 단원별로 카드·문제·키워드·조건을 모음', flat.includes('구조:철근공') && flat.includes('재료:타설팀') && flat.includes('안전:방호') && flat.includes('재료:양생') && flat.includes('재료:집중호우') && flat.includes('시공:소음 구름'));
+t('해설: 단원 순서 시공 → 재료 → 구조 → 안전', cs.map(x => x.unit).join() === '시공,재료,구조,안전');
+const qz = Array.from({ length: 50 }, (_, k) => JG.lesson.quiz(g8, k + 1));
+t('용어 OX: 늘 3문제, O와 X가 적어도 하나씩', qz.every(q => q.length === 3 && q.some(x => x.answer) && q.some(x => !x.answer)));
+t('용어 OX: X 문제는 다른 설명을 보여 줌, O 문제는 바른 설명', qz.every(q => q.every(x => (x.answer ? x.shown === x.correct : x.shown !== x.correct))));
+t('용어 OX: 낸 카드가 적어도 3문제', JG.lesson.quiz(Object.assign(E.newGame({ siteId: 'house', seed: 1 }), {}), 5).length === 3);
 
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');

@@ -3,7 +3,7 @@
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc;
   const TRADE = { rebar: '철근', formwork: '형틀·가설', concrete: '콘크리트', equipment: '장비', safety: '안전', method: '공법' };
-  let cur = null;   // { kind: 'card' | 'prob', id }
+  let cur = null;   // { kind: 'card' | 'prob', id } 또는 { kind: 'page', page } (해설·OX처럼 직접 만든 페이지)
 
   const keywordsOf = o => ['guard', 'rush', 'cure', 'prerequisite'].filter(k => o[k]).map(k => JG.KEYWORDS[k]);
   const source = o => o.loreSource || '검토 중 (교재·표준시방서와 대조 예정)';
@@ -48,17 +48,31 @@
       if (o.slang) JG.progress.seeSlang(o.slang);
       return true;
     },
+    // page: { title, meta, body() → HTML, text() → 읽기 프로그램용 글, click(행동, 번호) (있으면) }
+    showPage(page) { cur = { kind: 'page', page }; },
+    click(act, n) { if (cur && cur.kind === 'page' && cur.page.click) cur.page.click(act, n); },
     close() { cur = null; },
     isOpen: () => !!cur,
 
     msg() {
+      if (cur.kind === 'page') return cur.page.title + '. ' + cur.page.text();
       const c = content(), end = s => (/[.!?]$/.test(s) ? s : s + '.');   // 문장 끝 마침표는 한 번만
       return [c.title + ' 풀이.', end(c.meta), end(c.effect)].concat(c.rows.map(r => end(r[0] + ': ' + r[1])), '도감에 저장됐어요.').join(' ');
     },
 
     html() {
-      const c = content(), [sw, sh] = spriteSize(c.sprite);
       let h = '<div data-act="info-close" aria-hidden="true" style="' + L.at(0, 0, 1440, 810) + ' background: rgba(59, 42, 32, 0.6)"></div>';
+      if (cur.kind === 'page') {   // 직접 만든 페이지: 제목, 한 줄 정보, 본문(넘치면 스크롤), 닫기
+        const p = cur.page;
+        h += '<div role="dialog" aria-modal="true" aria-label="' + esc(p.title) + '" style="' + L.at(330, 105, 780, 600) + ' box-sizing: border-box; ' + L.WOOD + "; font-family: 'Galmuri11', monospace\">";
+        h += '<h2 style="' + L.at(24, 18) + ' margin: 0; font-size: 32px; line-height: 32px; font-weight: normal; color: #FFFFFF; ' + L.OUT2 + '">' + esc(p.title) + '</h2>';
+        h += '<div style="' + L.at(24, 58, 720) + ' color: #FFE08A; ' + L.OUT1 + '">' + esc(p.meta) + '</div>';
+        h += '<div style="' + L.at(15, 84, 744, 420) + ' box-sizing: border-box; ' + L.PAPER + '">'
+          + '<div tabindex="0" style="' + L.at(18, 15, 702, 384) + ' overflow-y: auto; line-height: 22px; word-break: keep-all">' + p.body() + '</div></div>';
+        h += '<button type="button" data-act="info-close" style="' + L.at(300, 522, 180, 60) + ' ' + L.BTN + '; ' + L.GREEN + '; font-size: 32px; line-height: 32px; color: #FFFFFF; ' + L.OUT2 + '">닫기</button>';
+        return h + '</div>';
+      }
+      const c = content(), [sw, sh] = spriteSize(c.sprite);
       h += '<div role="dialog" aria-modal="true" aria-label="' + esc(c.title) + ' 풀이" style="' + L.at(330, 105, 780, 600) + ' box-sizing: border-box; ' + L.WOOD + "; font-family: 'Galmuri11', monospace\">";
       h += '<h2 style="' + L.at(24, 18) + ' margin: 0; font-size: 32px; line-height: 32px; font-weight: normal; color: #FFFFFF; ' + L.OUT2 + '">' + esc(c.title) + '</h2>';
       h += '<div style="' + L.at(24, 58, 720) + ' color: #FFE08A; ' + L.OUT1 + '">' + esc(c.meta) + '</div>';

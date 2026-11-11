@@ -59,6 +59,7 @@
     click(act, n) {
       JG.sound.play('tick');
       if (act === 'title') { JG.app.show(JG.app.hub); return; }
+      if (act === 'classroom') { JG.app.show('classroom'); return; }
       if (act !== 'site') return;
       const site = JG.SITES[n];
       if (!P.unlocked(n)) { msg = JG.engine.eun(site.name) + ' 아직 잠겨 있어요. ' + (site.no - 1) + '번 현장을 먼저 준공해 주세요.'; return; }
@@ -76,7 +77,8 @@
       JG.SITES.forEach((site, i) => { h += notice(site, i, 15 + i * (w + gap), 72, w, 540); });
       h += '</div>';
       h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '; font-size: 16px">' + JG.app.hubLabel() + '</button>';
-      h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
+      h += '<button type="button" data-act="classroom" aria-label="수업용 현장. 코드로 현장 만들기와 열기" style="' + L.at(348, 714, 240, 72) + ' ' + L.BTN + '; ' + L.WOOD + '; color: #FFFFFF; ' + L.OUT1 + '">수업용 현장 (코드)</button>';
+      h += '<p style="' + L.at(612, 714, 744, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }
   };

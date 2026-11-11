@@ -9,10 +9,14 @@
 var JG = globalThis.JG = globalThis.JG || {};
 
 // 현장 조건: tradeAtk(공종별 공격 증감), cureDelay(양생이 n턴 늦게 끝남), needGuard(방호 작업팀이 없으면 현장 턴마다 공기 -n)
+// lore: 수업용 해설 모드에 나오는 설명 (loreSource에 근거를 적는다)
 JG.CONDITIONS = {
-  rain: { name: '집중호우', weather: '비', text: '타설팀 공격 -1', tradeAtk: { concrete: -1 } },
-  cold: { name: '한파', weather: '눈', text: '양생이 1턴 늦게 끝남', cureDelay: 1 },
-  soft: { name: '연약지반', weather: '땅', text: '방호 없으면 턴마다 공기 -1', needGuard: 1 }
+  rain: { name: '집중호우', weather: '비', text: '타설팀 공격 -1', tradeAtk: { concrete: -1 },
+    lore: '굳지 않은 콘크리트에 빗물이 섞이면 강도가 떨어질 수 있어, 큰비에는 타설을 미루거나 덮어서 보호한다', loreSource: '' },
+  cold: { name: '한파', weather: '눈', text: '양생이 1턴 늦게 끝남', cureDelay: 1,
+    lore: '기온이 낮으면 콘크리트가 늦게 굳고 얼 수도 있어, 덮고 데우는 보온양생을 한다', loreSource: '' },
+  soft: { name: '연약지반', weather: '땅', text: '방호 없으면 턴마다 공기 -1', needGuard: 1,
+    lore: '무른 땅을 팔 때는 흙막이로 굴착면을 버티고, 필요하면 지반을 보강한다', loreSource: '' }
 };
 
 JG.SITES = [

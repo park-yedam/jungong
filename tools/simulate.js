@@ -3,7 +3,7 @@
 //       node tools\simulate.js 500    (현장별 500판씩)
 // 규칙 엔진이 오류 없이 끝까지 도는지, 난이도·덱별 준공률과 판 길이가 어떤지 본다.
 const path = require('path');
-['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'js/daily.js']
+['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'data/units.js', 'js/daily.js', 'js/scenario.js']
   .forEach(f => require(path.join(__dirname, '..', f)));
 
 const JG = globalThis.JG, E = JG.engine, R = JG.RULES;
@@ -150,6 +150,25 @@ console.log('똑똑한 봇: 1~3번 현장은 기본 덱, 4~5번 현장은 확장
     const avg = st.turns / st.n, sec = Math.round(avg * SECONDS_PER_TURN);
     console.log((k === 'clear' ? '맑음' : JG.CONDITIONS[k].name) + ' | ' + st.n + '일 | 준공 ' + Math.round(st.wins / st.n * 100) + '% | 평균 ' + avg.toFixed(1) + '턴 (예상 ' + Math.floor(sec / 60) + '분 ' + (sec % 60) + '초)');
   });
+})();
+// 수업용 현장: 무작위로 만든 시나리오 코드 (오류 찾기 + 준공률)
+(() => {
+  const SC = JG.scenario, rnd = E.random(77);
+  let wins = 0, done = 0;
+  for (let n = 0; n < GAMES; n++) {
+    total++;
+    const problems = SC.PROBS.filter(() => rnd() < 0.5);
+    if (!problems.length) problems.push('crack');
+    const opts = { condition: SC.CONDS[Math.floor(rnd() * 4)], bricks: SC.BRICKS[Math.floor(rnd() * 4)], problems, turnSeconds: SC.TIMERS[Math.floor(rnd() * 2)], seed: Math.floor(rnd() * 16384) };
+    try {
+      const code = SC.encode(opts), site = SC.siteFor(SC.decode(code));
+      const s = E.newGame({ site, pledge: PLEDGES[n % 3], seed: site.seed, deck: EXP_DECK });
+      check(s);
+      while (!s.over) greedyTurn(s);
+      done++; if (s.over === 'win') wins++;
+    } catch (e) { errors.push('수업 현장 ' + n + ': ' + e.message); }
+  }
+  console.log('\n[수업용 현장 · 무작위 코드 ' + GAMES + '개 · 똑똑한 봇 · 확장 덱] 준공 ' + Math.round(wins / Math.max(1, done) * 100) + '%');
 })();
 run('random', '무작위 봇 · 보통 · 판마다 다른 덱 (오류 찾기용)', { difficulty: 'normal' });
 console.log('\n총 ' + total + '판 · 오류 ' + errors.length + '건');

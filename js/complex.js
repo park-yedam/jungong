@@ -106,6 +106,7 @@
       // 현장 땅 5곳
       JG.SITES.forEach((site, i) => { h += lot(site, i); });
       h += walkers();
+      h += L.sprite(JG.bossSprite(), 1330, 480);   // 길 끝에 선 현장소장 (용어 OX를 다 맞히면 금색 안전모)
       // 앞줄 시설
       h += facility('board', 70, ART.board, '현장 게시판', '현장 고르기', '현장 게시판. 현장 고르기');
       h += facility('shed', 410, ART.shed, '자재 창고', '덱 ' + ((d.deck && d.deck.length) || 12) + '장', '자재 창고. 덱 편집');
