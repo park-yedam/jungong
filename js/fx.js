@@ -105,6 +105,17 @@
       ], { duration: 360, easing: 'ease-in' }));
     },
 
+    // 다른 곳(from, 무대 좌표 사각형)에서 제자리로 날아오기 (자재 더미 → 손패). delay 동안은 출발점에 숨어 있다
+    arrive(el, from, delay) {
+      if (!el || reduced()) return Promise.resolve();
+      const a = fx.center(from), b = fx.center(fx.rectOf(el));
+      return track(el.animate([
+        { transform: 'translate(' + (a.x - b.x) + 'px, ' + (a.y - b.y) + 'px) scale(0.4) rotate(-12deg)', opacity: 0 },
+        { opacity: 1, offset: 0.25 },
+        { transform: 'none', opacity: 1 }
+      ], { duration: 480, delay: delay || 0, easing: 'ease-out', fill: 'backwards' }));
+    },
+
     // 흐려지며 사라지기 (퇴장, 문제 해결). 화면을 다시 그리기 전에 쓴다
     vanish(el) {
       if (!el) return Promise.resolve();

@@ -98,7 +98,7 @@
     return 'coin';
   }
   // 현장 턴 사건마다 나는 소리
-  const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', coinDrain: 'coinLoss', hitWorker: 'hurt', solved: 'solved', cured: 'solved', cancelled: 'solved', lose: 'lose', newProblem: 'tick', shield: 'shield', burn: 'tick', swap: 'tick' };
+  const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', coinDrain: 'coinLoss', hitWorker: 'hurt', solved: 'solved', cured: 'solved', cancelled: 'solved', lose: 'lose', newProblem: 'tick', shield: 'shield', burn: 'tick', swap: 'tick', empty: 'thud' };
   const selWorker = () => (ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null);
   const selCard = () => (ui.sel && ui.sel.t === 'card' ? JG.CARDS[g.hand[ui.sel.i]] : null);
 
@@ -123,7 +123,7 @@
     } else if (e.t === 'hit') {
       pop(ZX[e.zone] + 90, PROB_Y, '-' + e.n);
       if (e.back) pop(ZX[e.from] + 90, MY_Y, '-' + e.back, RED, 32);
-    } else if (e.t === 'calendar' || e.t === 'penalty') {
+    } else if (e.t === 'calendar' || e.t === 'penalty' || e.t === 'empty') {
       pop(CAL[0], CAL[1], '-' + e.n + '일');
       fx.shake(calendarEl());
       if (e.n >= 2) fx.shakeScreen();
@@ -153,6 +153,11 @@
     fx.skipAll();
     JG.app.render();   // 옛 화면을 새 상태로 바꿔 둔 뒤 누른 것을 처리한다
   }
+  // 새로 뽑은 손패(k번 카드들)가 자재 더미에서 날아온다 (다시 그린 직후)
+  const PILE = { x: 42, y: 468, w: 180, h: 80 };
+  const arriveCards = ks => post.push(() => ks.forEach((k, j) => fx.arrive(at('card:' + k), PILE, j * 120)));
+  const lastCards = n => Array.from({ length: n }, (_, j) => g.hand.length - n + j);   // 뽑은 카드는 손패 끝에 붙는다
+
   // 작업팀(i)이 대상(문제 칸 번호 또는 'building')으로 돌진해 친다. 해결된 문제·퇴장한 작업팀은 흐려지며 사라진다
   function animateHit(i, target, res) {
     return hold(async live => {
@@ -260,7 +265,8 @@
     const summary = parts.length ? '현장 턴: ' + parts.join(', ') + '.' : '현장 턴이 조용히 지나갔어요.';
     const final = g.over ? res.events[res.events.length - 1].text : [(prefix || '') + summary].concat(tips, turnStartText()).join(' ');
 
-    ui.replay = { frames, i: 0, final };
+    const drawn = before.deck.length - g.deck.length - res.events.filter(e => e.t === 'burn').length;   // 다음 내 턴에 뽑은 카드 수
+    ui.replay = { frames, i: 0, final, drawn };
     runReplay(ui.replay);
   }
   // 사건 하나씩: 문제 카드가 작업팀·달력으로 돌진해 부딪히고, 퇴장·해결은 흐려지며 사라지고, 새 문제는 위에서 내려앉는다
@@ -297,11 +303,65 @@
   function finishReplay() {
     if (ui.replay.i < ui.replay.frames.length - 1 && g.over === 'lose') JG.sound.play('lose');   // 건너뛰어도 공기 지연 소리는 난다
     ui.msg = ui.replay.final;
+    if (ui.replay.drawn > 0) arriveCards(lastCards(ui.replay.drawn));
     ui.replay = null;
     fx.skipAll();
     startTurnTimer();   // 새 내 턴의 시간
     JG.app.render();
     if (!g.over) fx.banner(g.turn + '턴 · 내 턴!');
+  }
+
+  // ---------- 자재 검수: 판을 시작할 때 처음 받은 손패에서 바꿀 카드를 고른다 (한 번만) ----------
+  function mulliganPage() {
+    const picks = [], L = JG.look, esc = JG.esc;
+    const cardBox = (id, k) => {
+      const c = JG.CARDS[id], on = picks.includes(k), crew = c.kind === 'crew';
+      return '<button type="button" data-act="mull:' + k + '" aria-pressed="' + on + '" aria-label="' + esc(c.name + ', 코인 ' + c.cost + '. ' + c.text + (on ? '. 바꿀 카드로 고름' : '')) + '" style="position: absolute; left: ' + k * 138 + 'px; top: 6px; width: 128px; height: 210px; padding: 0; margin: 0; font: inherit; color: #3B2A20; cursor: pointer; box-sizing: border-box; background: #F4E4BC; border: 3px solid ' + (crew ? '#8B5A2B' : '#5B8DEF') + '; outline: ' + (on ? '4px solid #E35D5B' : '3px solid transparent') + '; outline-offset: 2px; opacity: ' + (on ? 0.6 : 1) + '">'
+        + '<span style="position: absolute; left: 0; top: 6px; width: 122px; text-align: center; font-size: 16px; line-height: 16px">' + esc(c.name) + '</span>'
+        + '<span aria-hidden="true" style="position: absolute; left: 34px; top: ' + (isSmall(id) ? 52 : 38) + 'px; width: 3px; height: 3px; box-shadow: ' + SP[id] + '"></span>'
+        + '<span style="position: absolute; left: 6px; top: 128px; width: 110px; font-size: 14px; line-height: 16px; text-align: center; word-break: keep-all">코인 ' + c.cost + (crew ? ' · ' + c.atk + '/' + c.hp : ' · 공법') + '<br>' + esc(c.text) + '</span>'
+        + (on ? '<span style="position: absolute; left: 34px; top: 74px; padding: 2px 8px; background: #B83E3C; border: 3px solid #3B2A20; color: #FFFFFF; font-size: 16px; line-height: 16px">바꿈</span>' : '')
+        + '</button>';
+    };
+    const btn = (act, label, x, w, green) => '<button type="button" data-act="' + act + '" style="position: absolute; left: ' + x + 'px; top: 0; width: ' + w + 'px; height: 56px; padding: 0; margin: 0; font: inherit; cursor: pointer; box-sizing: border-box; ' + L.BTN + '; '
+      + (green ? L.GREEN + '; color: #FFFFFF; ' + L.OUT2 : L.PAPER + '; background: #FFFFFF; color: #3B2A20') + '; font-size: 24px; line-height: 24px">' + esc(label) + '</button>';
+    const finish = swap => {
+      const changed = swap ? picks.slice().sort((a, b) => a - b) : [], res = E.mulligan(g, changed);
+      JG.info.close();
+      ui.msg = res.msg + ' ' + turnStartText();
+      if (changed.length) { JG.sound.play('coin'); arriveCards(changed); }
+      store();
+      fx.banner(g.turn + '턴 · 내 턴!');
+    };
+    return {
+      title: '자재 검수',
+      meta: '처음 받은 자재를 살펴보세요. 바꿀 카드를 눌러 고르고 [바꾸기] (한 번만)',
+      body: () => '<div style="position: relative; height: 226px">' + g.hand.map(cardBox).join('') + '</div>'
+        + '<div style="position: relative; height: 56px; margin-top: 18px">' + btn('mull-go', picks.length ? picks.length + '장 바꾸기' : '바꿀 카드를 고르세요', 0, 330, picks.length > 0) + btn('mull-keep', '그대로 시작', 350, 250, false) + '</div>'
+        + '<p style="margin: 12px 0 0; font-size: 14px; color: #5C3A1E">바꾼 카드는 자재 더미 맨 아래로 가고, 자재 더미 맨 위 카드가 그 자리에 들어와요.</p>',
+      text: () => '손패: ' + g.hand.map(id => JG.CARDS[id].name).join(', ') + '. ' + (picks.length ? '바꿀 카드: ' + picks.map(k => JG.CARDS[g.hand[k]].name).join(', ') + '.' : '바꿀 카드를 눌러 고른 뒤 바꾸기를, 그대로 쓰려면 그대로 시작을 누르세요.'),
+      click(act, n) {
+        if (act === 'mull') { const k = picks.indexOf(n); if (k >= 0) picks.splice(k, 1); else picks.push(n); JG.sound.play('tick'); }
+        if (act === 'mull-go' && picks.length) finish(true);
+        if (act === 'mull-keep') finish(false);
+      }
+    };
+  }
+
+  // ---------- 남은 자재 보기: 자재 더미에 남은 카드 (뽑는 순서는 비밀이라 코인·이름 순으로) ----------
+  function pilePage() {
+    const count = {};
+    g.deck.forEach(id => { count[id] = (count[id] || 0) + 1; });
+    const ids = Object.keys(count).sort((a, b) => JG.CARDS[a].cost - JG.CARDS[b].cost || JG.CARDS[a].name.localeCompare(JG.CARDS[b].name, 'ko'));
+    const line = id => { const c = JG.CARDS[id]; return c.name + ' ×' + count[id] + ' (코인 ' + c.cost + (c.kind === 'crew' ? ' · 작업팀 ' + c.atk + '/' + c.hp : ' · 공법') + ')'; };
+    const rule = '자재 소진: 자재 더미가 비면 턴을 시작할 때마다 공기 -' + R.emptyDeckDays + '일. 카드를 뽑는 카드(드론 측량 등)는 자재를 빨리 써요.';
+    return {
+      title: '남은 자재',
+      meta: '자재 더미 ' + g.deck.length + '장 · 뽑는 순서는 비밀이에요',
+      body: () => (ids.length ? ids.map(id => '<p style="margin: 0 0 10px"><span style="color: #3E5C8A">' + JG.esc(line(id)) + '</span><br>' + JG.esc(JG.CARDS[id].text) + '</p>').join('')
+        : '<p style="margin: 0 0 10px">자재를 다 썼어요.</p>') + '<p style="margin: 12px 0 0; color: #8B3A1E">' + JG.esc(rule) + '</p>',
+      text: () => (ids.length ? ids.map(line).join(', ') + '.' : '자재를 다 썼어요.') + ' ' + rule
+    };
   }
 
   // ---------- 화면 등록 ----------
@@ -312,7 +372,9 @@
       else begin(newGameFor(arg));
       clearInterval(ticker);
       ticker = setInterval(tick, 1000);
-      if (!g.over) fx.banner(g.turn + '턴 · 내 턴!');
+      const guide = E.siteOf(g).guide;
+      if (!arg.resume && !(guide && guide[1])) JG.info.showPage(mulliganPage());   // 첫 판 안내가 있는 현장은 빼고. 알림판은 검수를 마친 뒤
+      else if (!g.over) fx.banner(g.turn + '턴 · 내 턴!');
     },
     leave() {
       clearInterval(ticker); ticker = null;
@@ -323,16 +385,17 @@
     music: () => (g.turn > R.baseTurns ? 'night' : 'day'),   // 9턴부터 야간작업 곡
 
     click(act, n) {
-      if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
+      if (ui.replay) { finishReplay(); return 'hold'; }   // 현장 턴 연출 중에는 누르면 바로 끝 (finishReplay가 이미 그렸으니 다시 그리지 않음: 뽑은 카드 연출이 지워지지 않게)
       stopAnim();   // 내 턴 연출 중이면 바로 끝내고 누른 것을 처리
       if (act === 'restart') { JG.app.show('tbm', tbmTarget()); return; }   // 새 판은 늘 아침 TBM부터
       if (act === 'exit') { JG.app.show(JG.app.hub); return; }
       if (act === 'sites') { JG.app.show('sites'); return; }
       if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
       if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
+      if (act === 'pile') { JG.sound.play('tick'); JG.info.showPage(pilePage()); return; }
       if (g.over) return;
       ui.bubble = null;
-      const coins0 = g.coins;
+      const coins0 = g.coins, deck0 = g.deck.length;
       let held;
       if (act === 'card') pickCard(n);
       else if (act === 'my') pickMy(n);
@@ -341,6 +404,7 @@
       else if (act === 'order') apply(E.order(g, selWorker()));
       else if (act === 'end') { endTurn(); return; }
       if (g.coins < coins0) pop(COIN[0], COIN[1], '-' + (coins0 - g.coins), RED, 32);
+      if (g.deck.length < deck0) arriveCards(lastCards(deck0 - g.deck.length));   // 드론 측량 등으로 뽑은 카드
       after();
       return held;
     },
@@ -507,7 +571,8 @@
       fcStat: s.cancelNext ? 'BIM 간섭검토' : fc ? '공격 ' + Math.max(0, fc.atk + (JG.DIFFICULTY[s.diff] || JG.DIFFICULTY.normal).probAtk) + ' · 체력 ' + fc.hp : '문제 없음',
       msg: ui.msg,
       pledgeName: s.pledge ? JG.PLEDGES[s.pledge].name : '없음', shieldText: pledgeStatus(s),
-      deckText: s.deck.length + '장 남음',
+      deckText: s.deck.length ? s.deck.length + '장 남음' : '다 씀!', deckColor: s.deck.length ? '#5C3A1E' : '#B83E3C',
+      pileAria: '자재 더미, ' + (s.deck.length ? s.deck.length + '장 남음' : '다 씀. 턴마다 공기 -' + R.emptyDeckDays + '일') + '. 눌러서 남은 자재 보기',
       probZones, myZones, hand, coins, coinText: s.coins + '/' + s.maxCoins,
       daysText: 'D-' + s.days, daysColor: s.days <= 5 ? '#B83E3C' : '#3B2A20',
       daysNote: pv && pv.lose ? '이대로면 공기 지연!' : pv && pv.days > 0 ? '다음 현장 턴 -' + pv.days + '일' : '남은 날짜',

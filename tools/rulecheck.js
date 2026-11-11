@@ -290,6 +290,28 @@ t('용어 OX: 늘 3문제, O와 X가 적어도 하나씩', qz.every(q => q.lengt
 t('용어 OX: X 문제는 다른 설명을 보여 줌, O 문제는 바른 설명', qz.every(q => q.every(x => (x.answer ? x.shown === x.correct : x.shown !== x.correct))));
 t('용어 OX: 낸 카드가 적어도 3문제', JG.lesson.quiz(Object.assign(E.newGame({ siteId: 'house', seed: 1 }), {}), 5).length === 3);
 
+// ---- 개선 5단계: 자재 검수, 자재 소진 ----
+s = fresh('apart');
+{
+  const hand0 = s.hand.slice(), deck0 = s.deck.slice(), res = E.mulligan(s, [2, 0]);
+  t('자재 검수: 고른 자리에 덱 맨 위 카드가 순서대로 들어옴', res.ok && s.hand[0] === deck0[0] && s.hand[1] === hand0[1] && s.hand[2] === deck0[1]);
+  t('자재 검수: 바꾼 카드는 덱 맨 아래로, 덱 장수 그대로', s.deck.slice(-2).join() === [hand0[0], hand0[2]].join() && s.deck.length === deck0.length);
+  t('자재 검수: 한 번만', !E.mulligan(s, [1]).ok);
+  const s2 = fresh('apart', { coins: 5, maxCoins: 5 });
+  E.playCard(s2, s2.hand.findIndex(id => JG.CARDS[id].kind === 'crew'), 0);
+  t('자재 검수: 카드를 낸 뒤에는 못 함', !E.mulligan(s2, [0]).ok);
+  const s3 = fresh('apart'), h3 = s3.hand.slice();
+  t('자재 검수: 아무것도 안 고르면 손패 그대로', E.mulligan(s3, []).ok && s3.hand.join() === h3.join() && s3.mulled);
+  const a = E.newGame({ siteId: 'apart', seed: 11 }), b = E.newGame({ siteId: 'apart', seed: 11 });
+  E.mulligan(a, [1]); E.mulligan(b, [1]);
+  t('자재 검수: 같은 덱·같은 선택이면 같은 결과 (데일리·수업)', JSON.stringify(a) === JSON.stringify(b));
+}
+s = fresh('apart', { deck: [] });
+snapRes = E.endTurn(s);
+t('자재 소진: 뽑을 카드가 없으면 공기 -1', s.days === 15 - JG.RULES.emptyDeckDays && snapRes.events.some(e => e.t === 'empty' && e.n === JG.RULES.emptyDeckDays));
+s = fresh('apart');
+t('자재가 남아 있으면 자재 소진 없음', !E.endTurn(s).events.some(e => e.t === 'empty') && s.days === 15);
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다

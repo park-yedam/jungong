@@ -112,6 +112,22 @@
     return got;
   }
 
+  // ---------- 판 시작: 자재 검수 ----------
+  // 1턴에 한 번, 고른 손패(picks: 손패 번호 목록)를 새 카드로 바꾼다. 새 카드는 그 자리에 들어오고,
+  // 바꾼 카드는 덱 맨 아래로 간다 (섞지 않으니 데일리·수업 현장은 같은 덱이면 누구나 같은 결과)
+  function mulligan(s, picks) {
+    if (s.mulled || s.turn !== 1 || s.rec.cards.length) return fail('자재 검수는 판을 시작할 때 한 번만 할 수 있어요.');
+    s.mulled = true;
+    const out = [];
+    picks.filter((h, k) => s.hand[h] && picks.indexOf(h) === k).sort((a, b) => a - b).forEach(h => {
+      if (!s.deck.length) return;
+      out.push(s.hand[h]);
+      s.hand[h] = s.deck.shift();
+    });
+    s.deck.push(...out);
+    return result(true, out.length ? '자재 검수! 카드 ' + out.length + '장을 바꿨어요.' : '자재 검수: 손패를 그대로 써요.', [{ t: 'mulligan', n: out.length }]);
+  }
+
   // ---------- 내 턴: 카드 내기 ----------
   // 손패 h번 카드를 낼 수 없으면 그 이유를, 낼 수 있으면 null을 돌려준다
   function whyCantPlay(s, h) {
@@ -349,7 +365,7 @@
     if (s.deck.length) {
       if (s.hand.length < r.handMax) s.hand.push(s.deck.shift());
       else { s.deck.shift(); say('burn', '손패가 꽉 차서 카드 1장이 버려졌어요.'); }
-    }
+    } else if (r.emptyDeckDays) { s.days -= r.emptyDeckDays; say('empty', '자재 소진: 뽑을 카드가 없어서 공기 -' + r.emptyDeckDays + '일.', { n: r.emptyDeckDays }); }
     if (s.turn > r.baseTurns && diffOf(s).delayPenalty) { s.days -= r.delayPenalty; say('penalty', (r.baseTurns + 1) + '턴부터 지체상금: 공기 -' + r.delayPenalty + '일.', { n: r.delayPenalty }); }
     if (s.days <= 0) { s.days = 0; s.over = 'lose'; say('lose', '달력이 D-0이 됐어요. 공기 지연...'); }
 
@@ -383,7 +399,7 @@
   }
 
   JG.engine = {
-    newGame, playCard, hit, order, endTurn, preview, previewHit,
+    newGame, mulligan, playCard, hit, order, endTurn, preview, previewHit,
     whyCantPlay, whyCantHit, whyCantOrder,
     atkOf, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
     random, shuffle, eun, ga, eul, ro, ieyo
