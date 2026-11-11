@@ -51,11 +51,12 @@ function targetFor(s, id) {
 }
 const worthIt = (s, id) => id !== 'rushwork' || s.my.filter((w, i) => !E.whyCantHit(s, i)).length >= 2;
 
-// 똑똑한 봇: 낼 수 있는 비싼 카드부터 내고, 작업지시를 쓰고, 방호 → 누수 → 건물 순으로 친다
+// 똑똑한 봇: 공정 순서의 다음 단계 작업팀을 먼저, 그다음 비싼 카드부터 내고, 작업지시를 쓰고, 방호 → 누수 → 건물 순으로 친다
+const comboNext = (s, h) => { const c = JG.CARDS[s.hand[h]]; return c.kind === 'crew' && c.trade === R.comboSteps[s.combo || 0] ? 1 : 0; };
 function greedyTurn(s) {
   for (let played = true; played && !s.over;) {
     played = false;
-    const byCost = s.hand.map((id, h) => h).sort((a, b) => E.costOf(s, s.hand[b]) - E.costOf(s, s.hand[a]));
+    const byCost = s.hand.map((id, h) => h).sort((a, b) => comboNext(s, b) - comboNext(s, a) || E.costOf(s, s.hand[b]) - E.costOf(s, s.hand[a]));
     for (const h of byCost) {
       const id = s.hand[h];
       if (E.whyCantPlay(s, h) || !worthIt(s, id)) continue;

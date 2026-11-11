@@ -124,11 +124,11 @@
       return track(el.animate(frames, { duration: 420, easing: 'ease-in', fill: 'forwards' }));
     },
 
-    // 가운데 알림판 ("내 턴!", "현장 턴", "공정 완료!")
-    banner(text, color) {
+    // 가운데 알림판 ("내 턴!", "현장 턴", "공정 완료!"). y: 알림판 가운데 높이 (기본 210)
+    banner(text, color, y) {
       const d = make('<div style="padding: 12px 36px; background: #8B5A2B; border: 3px solid #3B2A20; box-shadow: inset 0 3px 0 #A8743F, inset 0 -6px 0 #6B4420">'
         + '<span style="font-size: 48px; line-height: 56px; color: ' + (color || '#FFFFFF') + '; text-shadow: ' + outline(3) + '">' + JG.esc(text) + '</span></div>',
-        'left: 720px; top: 210px; transform: translate(-50%, -50%); white-space: nowrap');   // 건물 높이: 문제 카드를 가리지 않게
+        'left: 720px; top: ' + (y || 210) + 'px; transform: translate(-50%, -50%); white-space: nowrap');   // 건물 높이: 문제 카드를 가리지 않게
       const frames = reduced()
         ? [{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }]
         : [{ transform: 'translate(-50%, -50%) scale(0.3)', opacity: 0 },

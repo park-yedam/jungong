@@ -15,6 +15,8 @@ JG.RULES = {
   bricksPerFloor: 4,     // 벽돌 4칸 = 1층
   deckSize: 12,          // 덱 장수
   emptyDeckDays: 1,      // 자재 소진: 턴을 시작할 때 뽑을 카드가 없으면 깎이는 공기
+  comboSteps: ['rebar', 'formwork', 'concrete'],   // 공정 순서: 이 공종의 작업팀을 차례로 내면 공정 완료 (턴을 넘겨도 이어짐)
+  comboBricks: 2,        // 공정 완료 때 바로 쌓는 벽돌
   maxCopies: 2,          // 덱에 같은 카드 최대 장수
   stars: [10, 5]         // 준공 때 남은 공기가 10일 이상 ★3, 5일 이상 ★2, 그 아래 ★1
 };

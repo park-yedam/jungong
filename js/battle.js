@@ -92,6 +92,7 @@
   function effectOf(events) {
     const t = events.map(e => e.t);
     if (t.includes('win')) return 'win';
+    if (t.includes('combo')) return 'floor';   // 공정 완료도 "빰!"
     if (t.includes('floor')) return 'floor';
     if (t.includes('solved')) return 'solved';
     if (t.includes('bricks') || t.includes('out') || events.some(e => e.text === '통통!')) return 'hammer';
@@ -136,6 +137,10 @@
       const b = fx.rectOf(at('building'));
       fx.burst(b.x + b.w / 2, b.y + 24, e.t === 'win' ? 60 : 30);
       if (e.t === 'floor') fx.banner(E.floorName(g, e.n) + ' 완성!', GOLD);
+    } else if (e.t === 'combo') {
+      const b = fx.rectOf(at('building'));
+      fx.banner('공정 완료! 벽돌 +' + e.n, GOLD, 120);   // 층 완성 알림판(210)과 겹치지 않게 위에
+      fx.burst(b.x + b.w / 2, b.y + 24, 30);
     } else if (e.t === 'out') fx.shakeScreen(6);
   }
   let animId = 0;
@@ -364,6 +369,24 @@
     };
   }
 
+  // ---------- 공정 순서 설명: 어느 카드가 몇 단계인지, 지금 몇 단계인지 ----------
+  const STEP_NAME = { rebar: '철근', formwork: '형틀', concrete: '타설' };
+  function comboPage() {
+    const steps = R.comboSteps, k = g.combo || 0;
+    const cardsOf = trade => Object.keys(JG.CARDS).filter(id => JG.CARDS[id].kind === 'crew' && JG.CARDS[id].trade === trade).map(id => JG.CARDS[id].name).join(', ');
+    const lines = [
+      '철근 → 형틀 → 타설 순서로 작업팀 카드를 내면 공정 완료! 그 자리에서 벽돌 ' + R.comboBricks + '칸을 쌓아요.',
+      '턴을 넘겨도 이어져요. 장비·안전 작업팀은 순서를 끊지 않고, 순서에 안 맞는 카드는 세지 않아요. 철근 카드를 내면 1단계부터 다시 시작해요.',
+      '현장에서는: 철근을 엮고(배근), 거푸집을 짜고, 콘크리트를 붓는(타설) 것이 한 층 뼈대를 세우는 기본 순서예요.'
+    ].concat(steps.map((t, i) => (i + 1) + '단계 ' + STEP_NAME[t] + ': ' + cardsOf(t)));
+    return {
+      title: '공정 순서',
+      meta: '지금 ' + k + '/' + steps.length + '단계' + (k < steps.length ? ' · 다음은 ' + STEP_NAME[steps[k]] : ''),
+      body: () => lines.map((l, i) => '<p style="margin: 0 0 10px' + (i >= 3 ? '; color: #3E5C8A' : '') + '">' + JG.esc(l) + '</p>').join(''),
+      text: () => lines.join(' ')
+    };
+  }
+
   // ---------- 화면 등록 ----------
   JG.screens.battle = {
     // arg: { siteId, pledge } 새 판 (아침 TBM에서 고른 다짐), { resume: true } 하던 판 이어하기
@@ -393,6 +416,7 @@
       if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
       if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
       if (act === 'pile') { JG.sound.play('tick'); JG.info.showPage(pilePage()); return; }
+      if (act === 'combo') { JG.sound.play('tick'); JG.info.showPage(comboPage()); return; }
       if (g.over) return;
       ui.bubble = null;
       const coins0 = g.coins, deck0 = g.deck.length;
@@ -571,6 +595,12 @@
       fcStat: s.cancelNext ? 'BIM 간섭검토' : fc ? '공격 ' + Math.max(0, fc.atk + (JG.DIFFICULTY[s.diff] || JG.DIFFICULTY.normal).probAtk) + ' · 체력 ' + fc.hp : '문제 없음',
       msg: ui.msg,
       pledgeName: s.pledge ? JG.PLEDGES[s.pledge].name : '없음', shieldText: pledgeStatus(s),
+      comboChips: R.comboSteps.map((t, i) => {
+        const k = s.combo || 0;
+        return { x: 46 + i * 76, name: STEP_NAME[t], bg: i < k ? '#7BD389' : i === k ? '#FFE08A' : '#FFFFFF', border: i === k ? '#B8860B' : '#3B2A20' };
+      }),
+      comboAria: '공정 순서 ' + (s.combo || 0) + '/' + R.comboSteps.length + '단계. ' + R.comboSteps.map(t => STEP_NAME[t]).join(', ') + ' 순서로 작업팀을 내면 벽돌 +' + R.comboBricks + '. 다음은 ' + STEP_NAME[R.comboSteps[s.combo || 0]] + '. 눌러서 설명 보기',
+      comboBricks: R.comboBricks,
       deckText: s.deck.length ? s.deck.length + '장 남음' : '다 씀!', deckColor: s.deck.length ? '#5C3A1E' : '#B83E3C',
       pileAria: '자재 더미, ' + (s.deck.length ? s.deck.length + '장 남음' : '다 씀. 턴마다 공기 -' + R.emptyDeckDays + '일') + '. 눌러서 남은 자재 보기',
       probZones, myZones, hand, coins, coinText: s.coins + '/' + s.maxCoins,

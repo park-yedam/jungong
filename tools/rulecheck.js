@@ -312,6 +312,30 @@ t('자재 소진: 뽑을 카드가 없으면 공기 -1', s.days === 15 - JG.RULE
 s = fresh('apart');
 t('자재가 남아 있으면 자재 소진 없음', !E.endTurn(s).events.some(e => e.t === 'empty') && s.days === 15);
 
+// ---- 개선 6단계: 공정 순서 (철근 → 형틀 → 타설) ----
+{
+  const g6 = fresh('house', { coins: 5, maxCoins: 5, hand: ['rebar', 'form', 'pump', 'pour', 'rebar'], days: 15 });
+  const put = id => { g6.coins = 5; return E.playCard(g6, g6.hand.indexOf(id), g6.my.findIndex(w => !w)); };
+  put('rebar');
+  t('공정 순서: 철근공을 내면 1단계', g6.combo === 1);
+  put('pump');
+  t('공정 순서: 다른 공종(장비)은 순서를 끊지 않음', g6.combo === 1);
+  put('form');
+  t('공정 순서: 형틀목수로 2단계', g6.combo === 2);
+  g6.my[0] = null;
+  const b0 = g6.bricks, r6 = put('pour');
+  t('공정 완료: 타설팀으로 벽돌 +' + JG.RULES.comboBricks + ', 순서는 처음부터', g6.combo === 0 && g6.bricks === b0 + JG.RULES.comboBricks && r6.events.some(e => e.t === 'combo' && e.n === JG.RULES.comboBricks));
+  const g7 = fresh('house', { coins: 5, maxCoins: 5, hand: ['form', 'pour', 'rebar'] });
+  E.playCard(g7, 0, 0); E.playCard(g7, 0, 1);
+  t('공정 순서: 순서가 안 맞으면 세지 않음', g7.combo === 0);
+  const g8b = fresh('house', { coins: 5, maxCoins: 5, hand: ['pour'], combo: 2, bricks: 11 });
+  const r8 = E.playCard(g8b, 0, 0);
+  t('공정 완료로 준공 (벽돌 넘치게 쌓지 않음)', g8b.over === 'win' && g8b.bricks === g8b.totalBricks && r8.events.map(e => e.t).join() === 'bubble,combo,floor,win');
+  const g9 = fresh('house', { coins: 5, maxCoins: 5, hand: ['rebar'] });
+  delete g9.combo;
+  t('공정 순서: 예전에 저장된 판(combo 없음)도 동작', E.playCard(g9, 0, 0).ok && g9.combo === 1);
+}
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다

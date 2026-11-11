@@ -92,7 +92,7 @@
       hand: deck.splice(0, handSize), deck,
       my: new Array(r.zones).fill(null), probs: new Array(r.zones).fill(null),
       orderUsed: false, shield: pledge.shield || 0, equipDiscount: pledge.equipDiscount || 0,
-      condOff: false, cancelNext: false,
+      condOff: false, cancelNext: false, combo: 0,   // combo: 공정 순서에서 마친 단계 수
       over: null,
       // 결과 화면용 기록: work[턴-1] = 그 턴에 일한 공종들, floors[층-1] = 완성한 턴, cards = 낸 카드 id, probs = 나온 문제 id
       rec: { work: [], floors: [], cards: [], probs: [] }
@@ -104,6 +104,32 @@
     const set = s.rec.work[s.turn - 1] || [];
     s.my.forEach(w => { const tr = w && !w.curing && card(w.id).trade; if (tr && !set.includes(tr)) set.push(tr); });
     s.rec.work[s.turn - 1] = set;
+  }
+
+  // 벽돌 n칸 쌓기: 층이 완성되면 기록하고, 다 차면 준공. 사건은 events에 붙이고, 실제로 쌓은 칸 수를 돌려준다
+  function build(s, n, events) {
+    const before = floors(s), b0 = s.bricks;
+    s.bricks = Math.min(s.totalBricks, s.bricks + n);
+    for (let f = before; f < floors(s); f++) s.rec.floors[f] = s.turn;
+    if (floors(s) > before) events.push({ t: 'floor', n: floors(s) });
+    if (s.bricks >= s.totalBricks) { s.over = 'win'; events.push({ t: 'win' }); }
+    return s.bricks - b0;
+  }
+  const winMsg = s => { const b = siteOf(s).basement || 0; return '준공! ' + (b ? '지하 ' + b + '층, 지상 ' + (totalFloors(s) - b) + '층' : totalFloors(s) + '층') + '까지 다 올렸어요.'; };
+
+  // 공정 순서: 철근 → 형틀 → 타설 공종의 작업팀을 차례로 내면 공정 완료 (벽돌 +comboBricks).
+  // 다른 공종은 순서를 끊지 않고, 순서에 안 맞는 카드는 세지 않는다. 철근 공종을 내면 1단계부터 다시
+  function advanceCombo(s, trade, events) {
+    const steps = R().comboSteps, k = s.combo || 0;   // 개선 6단계 전에 저장된 판은 combo가 없다
+    if (trade === steps[k]) s.combo = k + 1;
+    else if (trade === steps[0]) s.combo = 1;
+    else return '';
+    if (s.combo < steps.length) return ' 공정 순서 ' + s.combo + '/' + steps.length + '.';
+    s.combo = 0;
+    const before = floors(s), more = [], got = build(s, R().comboBricks, more);
+    events.push({ t: 'combo', n: got }, ...more);   // 공정 완료 → 층 완성 → 준공 순서
+    if (s.over === 'win') return ' 공정 완료! ' + winMsg(s);
+    return ' 공정 완료! 벽돌 ' + got + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').' + (floors(s) > before ? ' ' + floorName(s, floors(s)) + ' 완성!' : '');
   }
 
   function draw(s, n) {
@@ -174,7 +200,9 @@
     if (pre && c.preBonus) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 +' + c.preBonus.atk + '/+' + c.preBonus.hp + '!';
     if (pre && c.preDraw) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 카드 ' + draw(s, c.preDraw) + '장을 뽑았어요!';
     if (w.curing) msg += w.curing > 1 ? ' 한파라서 양생이 ' + w.curing + '턴 걸려요.' : ' 양생이 끝나면 더 단단해져요.';
-    return result(true, msg, [{ t: 'bubble', zone: z, text: c.line }]);
+    const events = [{ t: 'bubble', zone: z, text: c.line }];
+    msg += advanceCombo(s, c.trade, events);
+    return result(true, msg, events);
   }
 
   // 공법 효과 (카드 데이터의 효과 이름대로)
@@ -230,18 +258,12 @@
       if (gi >= 0) return fail(ga(guardName) + ' 방호로 막고 있어요. 먼저 치워 주세요.');
       mark(s);
       const before = floors(s);
-      s.bricks = Math.min(s.totalBricks, s.bricks + a);
-      for (let f = before; f < floors(s); f++) s.rec.floors[f] = s.turn;
       w.ready = false;
       const events = [{ t: 'bubble', zone: i, text: '통통!' }, { t: 'bricks', zone: i, n: a }];
+      build(s, a, events);
       let msg = '통통! ' + ga(c.name) + ' 벽돌 ' + a + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').';
-      if (floors(s) > before) { msg += ' ' + floorName(s, floors(s)) + ' 완성! 창문에 불이 켜졌어요.'; events.push({ t: 'floor', n: floors(s) }); }
-      if (s.bricks >= s.totalBricks) {
-        const b = siteOf(s).basement || 0;
-        s.over = 'win';
-        msg = '준공! ' + (b ? '지하 ' + b + '층, 지상 ' + (totalFloors(s) - b) + '층' : totalFloors(s) + '층') + '까지 다 올렸어요.';
-        events.push({ t: 'win' });
-      }
+      if (floors(s) > before) msg += ' ' + floorName(s, floors(s)) + ' 완성! 창문에 불이 켜졌어요.';
+      if (s.over === 'win') msg = winMsg(s);
       return result(true, msg, events);
     }
 
