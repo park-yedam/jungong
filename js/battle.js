@@ -2,7 +2,6 @@
 (() => {
   const JG = globalThis.JG, E = JG.engine, R = JG.RULES, SP = JG.SPRITES;
   const ZX = [342, 534, 726, 918];   // 작업 구역 4칸의 가로 위치 (시안 ②)
-  const PLEDGE_ID = 'chant';          // 오늘의 TBM 다짐. 고르는 화면은 4단계에서
   const PULSE = 'pulse 0.8s steps(2) infinite';
   const STEP_MS = 700;                // 현장 턴 사건 하나를 보여 주는 시간
   const clone = o => JSON.parse(JSON.stringify(o));
@@ -20,11 +19,11 @@
     JG.save.data.game = g.over ? null : g;
     JG.save.write();
   }
-  // 행동 뒤 공통 처리: 준공이면 별 기록, 하던 판 저장
+  // 행동 뒤 공통 처리: 준공이면 별·보상 기록(결과 화면에 넘길 정보), 하던 판 저장
   function after() {
     if (g.over && !ui.recorded) {
       ui.recorded = true;
-      if (g.over === 'win') JG.progress.record(g.siteId, E.stars(g));
+      if (g.over === 'win') ui.result = JG.progress.record(g.siteId, E.stars(g));
     }
     store();
   }
@@ -137,19 +136,19 @@
 
   // ---------- 화면 등록 ----------
   JG.screens.battle = {
-    // arg: { siteId } 새 판, { resume: true } 하던 판 이어하기
+    // arg: { siteId, pledge } 새 판 (아침 TBM에서 고른 다짐), { resume: true } 하던 판 이어하기
     enter(arg) {
       if (arg.resume && JG.save.data.game) begin(JG.save.data.game, '이어서 해요. ');
-      else begin(E.newGame({ siteId: arg.siteId, pledge: PLEDGE_ID, seed: Date.now() % 1000000 + 1 }));
+      else begin(E.newGame({ siteId: arg.siteId, pledge: arg.pledge, seed: Date.now() % 1000000 + 1 }));
     },
     msg: () => ui.msg,
 
     click(act, n) {
       if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
-      if (act === 'restart') { begin(E.newGame({ siteId: g.siteId, pledge: PLEDGE_ID, seed: Date.now() % 1000000 + 1 })); return; }
+      if (act === 'restart') { JG.app.show('tbm', { siteId: g.siteId }); return; }   // 새 판은 늘 아침 TBM부터
       if (act === 'exit') { JG.app.show('title'); return; }
       if (act === 'sites') { JG.app.show('sites'); return; }
-      if (act === 'next') { JG.app.show('battle', { siteId: nextSiteId() }); return; }
+      if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
       if (g.over) return;
       ui.bubble = null;
       if (act === 'card') pickCard(n);
@@ -164,12 +163,6 @@
     render() { return JG.battleView(view(), JG.esc); }
   };
 
-  // 준공한 현장의 다음 현장 (없으면 null)
-  function nextSiteId() {
-    const i = JG.SITES.findIndex(s => s.id === g.siteId);
-    return i + 1 < JG.SITES.length && JG.progress.unlocked(i + 1) ? JG.SITES[i + 1].id : null;
-  }
-
   function pledgeStatus(s) {
     if (s.pledge === 'chant') return s.shield > 0 ? '첫 피해 1번 무효 (1회 남음)' : '첫 피해를 이미 막았어요';
     if (s.pledge === 'delivery') return '시작 손패 +1장 (받았어요)';
@@ -177,16 +170,9 @@
     return '';
   }
 
-  // 끝 창 버튼: 준공했고 다음 현장이 있으면 [다음 현장] [다시 하기] [현장 고르기], 아니면 [다시 하기] [현장 고르기]
+  // 끝 창 버튼: 준공이면 [결과 보기] (다음 현장·다시 하기는 결과 화면에서), 공기 지연이면 [다시 하기] [현장 고르기]
   function overButtons() {
-    const next = g.over === 'win' && nextSiteId();
-    if (next) {
-      return [
-        { act: 'next', label: '다음 현장', x: 13, w: 220, primary: true },
-        { act: 'restart', label: '다시 하기', x: 245, w: 150 },
-        { act: 'sites', label: '현장 고르기', x: 407, w: 150 }
-      ];
-    }
+    if (g.over === 'win') return [{ act: 'result', label: '준공 결과 보기', x: 135, w: 300, primary: true }];
     return [
       { act: 'restart', label: '다시 하기', x: 36, w: 240, primary: true },
       { act: 'sites', label: '현장 고르기', x: 294, w: 240 }

@@ -141,8 +141,22 @@ t('남은 공기 15 → ★3', E.stars(s) === 3);
 s.days = 9; t('9일 → ★2', E.stars(s) === 2);
 s.days = 4; t('4일 → ★1', E.stars(s) === 1);
 
+// 결과 화면용 기록 (공정표, 기념사진)
+s = fresh('house', { coins: 5, maxCoins: 5, hand: ['rebar', 'pour', 'drone'] });
+E.playCard(s, 0, 0); E.playCard(s, 0, 1); E.playCard(s, 0, null);
+t('1턴 기록: 철근만 (타설은 양생 중이라 빠짐)', s.rec.work[0].join() === 'rebar');
+t('낸 카드 기록', s.rec.cards.join() === 'rebar,pour,drone');
+E.endTurn(s); E.endTurn(s);
+t('2턴 기록: 양생 끝난 타설 포함', s.rec.work[1].includes('concrete') && s.rec.work[1].includes('rebar'));
+s = fresh('house', { bricks: 2, turn: 4 });
+s.my[0] = { id: 'pump', atk: 3, hp: 2, ready: true, fresh: false, curing: false, guard: false, buff: 0, pre: false };
+E.hit(s, 0, 'building');
+t('1층 완성 턴 기록', s.rec.floors[0] === 4 && s.rec.floors.length === 1);
+
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');
+t('조사: 아파트를 / 타워크레인을', E.eul('장마철 아파트') === '장마철 아파트를' && E.eul('타워크레인') === '타워크레인을');
+t('조사: 주임으로 / 대리로 / 현장소장으로 / 서울로', E.ro('주임') === '주임으로' && E.ro('대리') === '대리로' && E.ro('현장소장') === '현장소장으로' && E.ro('서울') === '서울로');
 
 console.log('규칙 점검 ' + (pass + failN) + '개 중 통과 ' + pass + '개, 실패 ' + failN + '개');
 process.exitCode = failN ? 1 : 0;

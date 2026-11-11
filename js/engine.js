@@ -16,6 +16,9 @@
   const hasBatchim = w => { const c = w.charCodeAt(w.length - 1) - 0xAC00; return c >= 0 && c < 11172 && c % 28 !== 0; };
   const eun = w => w + (hasBatchim(w) ? '은' : '는');
   const ga = w => w + (hasBatchim(w) ? '이' : '가');
+  const eul = w => w + (hasBatchim(w) ? '을' : '를');
+  // '로/으로': 받침이 없거나 ㄹ 받침이면 '로'
+  const ro = w => w + (hasBatchim(w) && (w.charCodeAt(w.length - 1) - 0xAC00) % 28 !== 8 ? '으로' : '로');
 
   // 시드 난수: 같은 시드면 늘 같은 순서가 나온다 (데일리 현장, 시나리오 코드용)
   function random(seed) {
@@ -78,8 +81,17 @@
       hand: deck.splice(0, handSize), deck,
       my: new Array(r.zones).fill(null), probs: new Array(r.zones).fill(null),
       orderUsed: false, shield: pledge.shield || 0, equipDiscount: pledge.equipDiscount || 0,
-      over: null
+      over: null,
+      // 결과 화면용 기록: work[턴-1] = 그 턴에 일한 공종들, floors[층-1] = 완성한 턴, cards = 낸 카드 id
+      rec: { work: [], floors: [], cards: [] }
     };
+  }
+
+  // 지금 작업 구역에서 일하는(양생 중이 아닌) 작업팀의 공종을 이번 턴 기록에 더한다
+  function mark(s) {
+    const set = s.rec.work[s.turn - 1] || [];
+    s.my.forEach(w => { const tr = w && !w.curing && card(w.id).trade; if (tr && !set.includes(tr)) set.push(tr); });
+    s.rec.work[s.turn - 1] = set;
   }
 
   function draw(s, n) {
@@ -110,6 +122,7 @@
     s.coins -= cost;
     s.hand.splice(h, 1);
     if (c.trade === 'equipment') s.equipDiscount = 0;
+    if (!s.rec.cards.includes(id)) s.rec.cards.push(id);
 
     if (c.kind === 'spell') {
       const n = draw(s, c.draw || 0);
@@ -121,6 +134,7 @@
       w.atk += c.preBonus.atk; w.hp += c.preBonus.hp; w.pre = true;
     }
     s.my[z] = w;
+    mark(s);
 
     let msg = w.ready ? c.name + ' 긴급투입! 바로 망치질할 수 있어요.'
       : w.guard ? c.name + ' 배치! 방호라서 현장 문제가 이쪽을 먼저 쳐요.'
@@ -155,8 +169,10 @@
 
     if (target === 'building') {
       if (gi >= 0) return fail(ga(guardName) + ' 방호로 막고 있어요. 먼저 치워 주세요.');
+      mark(s);
       const before = floors(s);
       s.bricks = Math.min(s.totalBricks, s.bricks + a);
+      for (let f = before; f < floors(s); f++) s.rec.floors[f] = s.turn;
       w.ready = false;
       const events = [{ t: 'bubble', zone: i, text: '통통!' }, { t: 'bricks', zone: i, n: a }];
       let msg = '통통! ' + ga(c.name) + ' 벽돌 ' + a + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').';
@@ -168,6 +184,7 @@
     const p = s.probs[target];
     if (!p) return fail('문제 카드나 건물을 골라 주세요.');
     if (gi >= 0 && !p.guard) return fail('방호(' + guardName + ')부터 치워야 해요!');
+    mark(s);
     const pname = problem(p.id).name, back = Math.max(0, p.atk - protection(s, i));
     p.hp -= a; w.hp -= back; w.ready = false;
     const events = [];
@@ -214,6 +231,7 @@
       s.days -= n; say('calendar', who + ': 공기 -' + n + '일.', { n });
     };
 
+    mark(s);
     // 작업지시는 내 턴에만 적용된다
     s.my.forEach(w => { if (w) w.buff = 0; });
 
@@ -272,6 +290,6 @@
     newGame, playCard, hit, order, endTurn,
     whyCantPlay, whyCantHit, whyCantOrder,
     atkOf, costOf, guardIndex, protection, floors, totalFloors, nextProblem, stars, siteOf,
-    random, shuffle, eun, ga
+    random, shuffle, eun, ga, eul, ro
   };
 })();

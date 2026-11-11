@@ -1,5 +1,5 @@
 // 앱 뼈대: 저장, 진행 상황, 화면 전환, 무대 크기 맞추기, 공통 모양
-// 화면(JG.screens.이름)은 { enter(값), render() → HTML 문자열, click(행동, 번호), msg() → 안내 문구 }를 가진다.
+// 화면(JG.screens.이름)은 { enter(값), render() → HTML 문자열, click(행동, 번호), msg() → 안내 문구, afterRender(무대)(있으면) }를 가진다.
 (() => {
   const JG = globalThis.JG;
   const stage = document.getElementById('stage'), live = document.getElementById('live');
@@ -8,12 +8,15 @@
 
   // ---------- 저장 (브라우저 localStorage). 저장이 막혀 있어도 게임은 돌아간다 ----------
   const KEY = 'jungong.save.v1';
+  // best: 현장별 최고 별, stars: 모은 별(누적), cards: 받은 확장 카드, slang: 본 현장 말, game: 하던 판
   function load() {
+    const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], game: null };
     try {
-      const d = JSON.parse(localStorage.getItem(KEY));
-      if (d && d.v === 1) return d;
+      const old = JSON.parse(localStorage.getItem(KEY));
+      if (old && old.v === 1) Object.assign(d, old);
     } catch (e) { /* 저장소를 못 쓰면 새로 시작 */ }
-    return { v: 1, best: {}, game: null };   // best: 현장별 최고 별, game: 하던 판
+    if (d.game && !d.game.rec) d.game = null;   // 3단계 때 저장된 판은 기록 칸이 없어 이어할 수 없다
+    return d;
   }
   JG.save = {
     data: load(),
@@ -26,9 +29,22 @@
     unlocked: i => i === 0 || JG.progress.best(JG.SITES[i - 1].id) > 0,
     // 빠른 시작: 열려 있고 아직 준공 못 한 첫 현장, 다 깼으면 마지막 현장
     nextSite: () => JG.SITES.find((s, i) => JG.progress.unlocked(i) && !JG.progress.best(s.id)) || JG.SITES[JG.SITES.length - 1],
-    totalStars: () => JG.SITES.reduce((n, s) => n + JG.progress.best(s.id), 0),
+    totalStars: () => JG.save.data.stars,
+    rankOf: n => JG.RANKS.filter(r => n >= r.stars).length - 1,   // 모은 별 n개일 때 칭호 번호
+    // 준공 기록: 최고 별, 모은 별, 처음 준공이면 확장 카드. 결과 화면에 쓸 정보를 돌려준다
     record(siteId, stars) {
-      JG.save.data.best[siteId] = Math.max(JG.progress.best(siteId), stars);
+      const d = JG.save.data, site = JG.SITES.find(s => s.id === siteId);
+      const first = !JG.progress.best(siteId), before = d.stars;
+      d.best[siteId] = Math.max(JG.progress.best(siteId), stars);
+      d.stars += stars;
+      const reward = first && site.reward && !d.cards.includes(site.reward) ? site.reward : null;
+      if (reward) d.cards.push(reward);
+      JG.save.write();
+      return { stars, first, reward, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
+    },
+    seeSlang(id) {
+      if (JG.save.data.slang.includes(id)) return;
+      JG.save.data.slang.push(id);
       JG.save.write();
     }
   };
@@ -58,6 +74,7 @@
     render() {
       const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.act : null;
       stage.innerHTML = screen.render();
+      if (screen.afterRender) screen.afterRender(stage);   // 캔버스 그림 등 HTML 뒤에 그려야 하는 것
       const msg = screen.msg ? screen.msg() : '';
       if (live.textContent !== msg) live.textContent = msg;
       if (focused) { const el = stage.querySelector('[data-act="' + focused + '"]'); if (el) el.focus(); }

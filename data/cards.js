@@ -60,6 +60,28 @@ JG.CARDS = {
     draw: 2,
     text: '카드 2장 뽑기',
     lore: '넓은 현장을 짧은 시간에 측량한다', loreSource: ''
+  },
+
+  // ---- 확장 카드: 현장을 처음 준공하면 받는 보상 (expansion). 대전에서 쓰는 것과 효과는 6단계 자재 창고부터 ----
+  signal: {
+    name: '신호수', kind: 'crew', trade: 'safety', cost: 1, atk: 1, hp: 1,
+    band: '#3E8C42', expansion: true,
+    line: '신호 들어갑니다!',
+    text: '내 장비 카드 공격 +1',
+    lore: '양중 장비 작업 때 신호로 운전원을 이끌고 주변 작업자를 지킨다', loreSource: ''
+  },
+  wetcure: {
+    name: '습윤양생', kind: 'spell', trade: 'method', cost: 1,
+    band: '#5B8DEF', expansion: true,
+    text: '아군 하나 체력 +3',
+    lore: '콘크리트 표면을 젖은 상태로 유지해 수분 증발을 막고 강도가 잘 오르게 한다', loreSource: ''
+  },
+  tower: {
+    name: '타워크레인', kind: 'crew', trade: 'equipment', cost: 4, atk: 3, hp: 4,
+    band: '#C99A1A', expansion: true, rush: true,
+    line: '인양 시작합니다!',
+    text: '긴급투입: 바로 망치질',
+    lore: '높은 곳까지 자재를 들어 올려 옮기는 고정식 양중 장비', loreSource: ''
   }
 };
 

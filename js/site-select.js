@@ -57,7 +57,7 @@
       if (act !== 'site') return;
       const site = JG.SITES[n];
       if (!P.unlocked(n)) { msg = JG.engine.eun(site.name) + ' 아직 잠겨 있어요. ' + (site.no - 1) + '번 현장을 먼저 준공해 주세요.'; return; }
-      JG.app.show('battle', { siteId: site.id });
+      JG.app.show('tbm', { siteId: site.id });
     },
 
     render() {

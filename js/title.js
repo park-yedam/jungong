@@ -28,7 +28,7 @@
     msg: () => msg,
 
     click(act) {
-      if (act === 'quick') JG.app.show('battle', { siteId: JG.progress.nextSite().id });
+      if (act === 'quick') JG.app.show('tbm', { siteId: JG.progress.nextSite().id });
       else if (act === 'continue' && JG.save.data.game) JG.app.show('battle', { resume: true });
       else if (act === 'sites') JG.app.show('sites');
     },

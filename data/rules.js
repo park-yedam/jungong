@@ -15,3 +15,12 @@ JG.RULES = {
   bricksPerFloor: 4,     // 벽돌 4칸 = 1층
   stars: [10, 5]         // 준공 때 남은 공기가 10일 이상 ★3, 5일 이상 ★2, 그 아래 ★1
 };
+
+// 직급 칭호: 모은 별(준공할 때마다 받은 별의 누적)이 이 개수 이상이면 오른다
+JG.RANKS = [
+  { name: '신입 기사', stars: 0 },
+  { name: '주임', stars: 5 },
+  { name: '대리', stars: 12 },
+  { name: '과장', stars: 20 },
+  { name: '현장소장', stars: 30 }
+];
