@@ -1,0 +1,84 @@
+/* 갈무리 글꼴 (SIL 오픈 폰트 라이선스 1.1, fonts/LICENSE.txt) */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('../fonts/Galmuri11.woff2') format('woff2');
+  font-display: block;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #3B2A20;   /* 화면 비율이 안 맞을 때 남는 가장자리 */
+}
+
+/* 1440×810 무대를 창 크기에 맞춰 줄이거나 늘린다 (js/battle.js의 fit) */
+#stage {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1440px;
+  height: 810px;
+  transform-origin: 0 0;
+}
+
+/* 키보드로 고른 곳은 노란 테두리 */
+#stage button:focus-visible {
+  outline: 3px solid #FFE08A !important;
+  outline-offset: 3px;
+}
+
+/* 시안의 움직임: 지금 할 수 있는 행동(깜빡임), 작업팀 통통 뛰기, 빗줄, 다음 벽돌 칸 */
+@keyframes pulse { 0%, 100% { outline-color: #7BD389; } 50% { outline-color: #E6FBEA; } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes rain { from { transform: translateY(-36px); } to { transform: translateY(0); } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* 읽기 프로그램에만 들리는 안내 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* 휴대폰 세로 화면 안내 */
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(59, 42, 32, 0.85);
+  font-family: 'Galmuri11', monospace;
+  color: #3B2A20;
+}
+@media (orientation: portrait) and (max-width: 767px) {
+  #rotate { display: flex; }
+}
+body.rotate-ok #rotate { display: none; }
+.rotate-box {
+  max-width: 320px;
+  padding: 20px;
+  background: #F4E4BC;
+  border: 3px solid #3B2A20;
+  box-shadow: 0 0 0 6px #8B5A2B, 0 0 0 9px #3B2A20;
+  text-align: center;
+}
+.rotate-box p { margin: 0 0 12px; font-size: 18px; line-height: 24px; }
+.rotate-box .rotate-sub { font-size: 14px; color: #5C3A1E; }
+#rotate-close {
+  min-height: 44px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 16px;
+  color: #3B2A20;
+  background: #FFFFFF;
+  border: 3px solid #3B2A20;
+  cursor: pointer;
+}

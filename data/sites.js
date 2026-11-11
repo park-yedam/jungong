@@ -4,7 +4,7 @@
 var JG = globalThis.JG = globalThis.JG || {};
 
 JG.CONDITIONS = {
-  rain: { name: '집중호우', text: '타설팀 공격 -1', tradeAtk: { concrete: -1 } }
+  rain: { name: '집중호우', weather: '비', text: '타설팀 공격 -1', tradeAtk: { concrete: -1 } }
 };
 
 JG.SITES = [
