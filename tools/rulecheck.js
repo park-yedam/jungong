@@ -446,12 +446,18 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('압축강도 시험: 양생 중인 팀이 없으면 못 씀', !!E.whyCantPlay(fresh('house', { coins: 5, hand: ['testpiece'] }), 0));
   E.playCard(k, 0, null);
   t('압축강도 시험: 양생 끝 +1/+2, 지난 턴 팀은 바로 칠 수 있고 방금 들어온 팀은 다음 턴', k.my[0].atk === 3 && k.my[0].hp === 5 && !k.my[0].curing && !E.whyCantHit(k, 0) && !!E.whyCantHit(k, 1) && !k.my[1].curing);
-  // 기성 청구: 이번 턴 코인 +2 (최대 5까지), 가득하면 못 씀
-  k = fresh('house', { coins: 4, maxCoins: 4, hand: ['payment', 'payment'] });
+  // 기성 청구: 완성한 층마다 이번 턴 코인 +1 (최대 5까지), 층이 없거나 가득하면 못 씀
+  k = fresh('house', { coins: 1, maxCoins: 3, hand: ['payment', 'payment'] });
+  t('기성 청구: 완성한 층이 없으면 못 씀', !!E.whyCantPlay(k, 0));
+  k.bricks = 8;   // 2층 완성
   E.playCard(k, 0, null);
-  t('기성 청구: 코인 4 → 5 (최대치까지), 가득하면 못 씀', k.coins === 5 && !!E.whyCantPlay(k, 0));
+  t('기성 청구: 2층 완성이면 코인 +2', k.coins === 3);
+  k.coins = 4; E.playCard(k, 0, null);
+  t('기성 청구: 최대 5까지, 가득하면 못 씀', k.coins === 5);
+  k.hand = ['payment'];
+  t('기성 청구: 코인이 가득하면 못 씀', !!E.whyCantPlay(k, 0));
   E.endTurn(k);
-  t('기성 청구: 다음 턴에는 원래대로', k.coins === 5 && k.maxCoins === 5);
+  t('기성 청구: 다음 턴에는 원래대로 (최대 4)', k.coins === 4 && k.maxCoins === 4);
   // 안전점검: 다음 공기 피해 1번 막기
   k = fresh('house', { coins: 5, maxCoins: 5, hand: ['inspect'], probs: [P('crack', 1, 9), null, null, null] });
   E.playCard(k, 0, null);

@@ -10,7 +10,7 @@
 //   onPlay(등장 효과: { trades: [공종], atk, hp } 낼 때 그 공종 다른 작업팀이 얻음)
 // 카드별 효과: brickBonus(건물을 칠 때 벽돌 +n) vsLeak(누수 문제를 칠 때 공격 +n) calmProblems(문제 카드 모두 공격 -n, 겹치지 않음)
 //   leadNeighbors(양옆 작업팀 공격 +n, 겹치지 않음) comboWild(공정 순서의 다음 단계로 셈)
-//   공법: comboStep(공정 순서 1단계 진행) cureNow(양생 중인 작업팀 바로 양생 완료) coinsNow(이번 턴 코인 +n, 최대치까지) shieldUp(공기 피해 n번 막기)
+//   공법: comboStep(공정 순서 1단계 진행) cureNow(양생 중인 작업팀 바로 양생 완료) coinsPerFloor(완성한 층마다 이번 턴 코인 +n, 최대치까지) shieldUp(공기 피해 n번 막기)
 // 숙련 승급: 필드의 같은 작업팀 위에 같은 카드를 겹쳐 내면 카드 공격·체력만큼 더해져 금색 숙련 작업팀이 된다 (한 팀에 한 번)
 var JG = globalThis.JG = globalThis.JG || {};
 
@@ -177,7 +177,7 @@ JG.CARDS = {
     lore: '지하 외벽은 물이 들어오는 바깥쪽에 방수층을 두는 것(외방수)이 기본이다', loreSource: ''
   },
   steel: {
-    name: '철골공', kind: 'crew', trade: 'steel', cost: 4, atk: 3, hp: 3,
+    name: '철골공', kind: 'crew', trade: 'steel', cost: 3, atk: 3, hp: 3,
     band: '#5B6B7A', expansion: true, prerequisite: 'tower', preTwice: true,
     line: '볼트 체결 완료!',
     text: '크레인 있으면 2번 침',
@@ -201,7 +201,7 @@ JG.CARDS = {
     lore: '레미콘은 비비기 시작해서 정해진 시간(기온에 따라 90~120분) 안에 타설을 끝내야 한다', loreSource: ''
   },
   scaffold: {
-    name: '비계공', kind: 'crew', trade: 'formwork', cost: 2, atk: 2, hp: 2,
+    name: '비계공', kind: 'crew', trade: 'formwork', cost: 2, atk: 1, hp: 3,
     band: '#B5835A', expansion: true, helmet: true,
     line: '안전난간 확인!',
     text: '안전모: 첫 피해 무효',
@@ -209,7 +209,7 @@ JG.CARDS = {
     lore: '비계 작업발판에는 안전난간을 달아 떨어지는 사고를 막는다', loreSource: ''
   },
   inspector: {
-    name: '감리원', kind: 'crew', trade: 'safety', cost: 3, atk: 0, hp: 4,
+    name: '감리원', kind: 'crew', trade: 'safety', cost: 2, atk: 0, hp: 4,
     band: '#3E8C42', expansion: true, calmProblems: 1,
     line: '도면대로 하셨죠?',
     text: '문제 모두 공격 -1',
@@ -217,14 +217,14 @@ JG.CARDS = {
     lore: '감리는 품질·안전·공정을 확인하고, 잘못된 시공은 바로잡도록 지시한다', loreSource: ''
   },
   cpm: {
-    name: '공정표 작성', kind: 'spell', trade: 'method', cost: 1,
+    name: '공정표 작성', kind: 'spell', trade: 'method', cost: 0,
     band: '#5B8DEF', expansion: true, comboStep: true,
     text: '공정 순서 1단계 진행',
     term: '작업 순서와 기간을 그린 일정표. CPM은 가장 오래 걸리는 작업 경로를 찾는 방법',
     lore: '주공정선(CP) 위의 작업이 늦어지면 전체 공기가 그만큼 늦어진다', loreSource: ''
   },
   testpiece: {
-    name: '압축강도 시험', kind: 'spell', trade: 'method', cost: 1,
+    name: '압축강도 시험', kind: 'spell', trade: 'method', cost: 0,
     band: '#5B8DEF', expansion: true, cureNow: true,
     text: '양생 중인 팀 바로 완료',
     term: '콘크리트 공시체(시험용 원기둥)를 눌러 부서질 때의 힘으로 강도를 확인하는 시험',
@@ -232,8 +232,8 @@ JG.CARDS = {
   },
   payment: {
     name: '기성 청구', kind: 'spell', trade: 'method', cost: 0,
-    band: '#5B8DEF', expansion: true, coinsNow: 2,
-    text: '이번 턴 코인 +2',
+    band: '#5B8DEF', expansion: true, coinsPerFloor: 1,
+    text: '완성한 층마다 코인 +1',
     term: '공사가 진행된 만큼(기성고) 공사비를 나눠 받는 것',
     lore: '기성은 보통 달마다 공정률을 확인해 그만큼 공사비를 청구하고 받는다', loreSource: ''
   },
@@ -255,7 +255,7 @@ JG.CARDS = {
     lore: '숙련 기능공이 견습공을 가르치며 현장 기술이 이어진다', loreSource: ''
   },
   excavator: {
-    name: '굴착기', kind: 'crew', trade: 'equipment', cost: 4, atk: 2, hp: 3,
+    name: '굴착기', kind: 'crew', trade: 'equipment', cost: 3, atk: 2, hp: 3,
     band: '#C99A1A', expansion: true, twice: true,
     line: '터파기 시작!',
     text: '한 턴 2번 망치질',

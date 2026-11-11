@@ -201,7 +201,8 @@
     if (c.cancelForecast && (!nextProblem(s) || s.cancelNext)) return c.name + ': 취소할 예고 문제가 없어요.';
     if (c.selfDays && s.days <= c.selfDays) return c.name + ': 공기가 ' + s.days + '일뿐이라 무리예요.';
     if (c.cureNow && !s.my.some(w => w && w.curing)) return c.name + ': 양생 중인 작업팀이 없어요.';
-    if (c.coinsNow && s.coins - cost >= R().maxCoins) return c.name + ': 코인이 이미 가득해요.';
+    if (c.coinsPerFloor && !floors(s)) return c.name + ': 아직 완성한 층이 없어요. 층을 올린 만큼 받아요.';
+    if (c.coinsPerFloor && s.coins - cost >= R().maxCoins) return c.name + ': 코인이 이미 가득해요.';
     return null;
   }
 
@@ -292,8 +293,8 @@
       });
       parts.push('양생 완료 ' + events.filter(e => e.t === 'cured').length + '팀');
     }
-    if (c.coinsNow) {   // 기성 청구: 이번 턴 코인 (최대치까지)
-      const got = Math.min(R().maxCoins, s.coins + c.coinsNow) - s.coins;
+    if (c.coinsPerFloor) {   // 기성 청구: 완성한 층마다 이번 턴 코인 +1 (최대치까지)
+      const got = Math.min(R().maxCoins, s.coins + c.coinsPerFloor * floors(s)) - s.coins;
       s.coins += got;
       events.push({ t: 'coins', n: got });
       parts.push('이번 턴 코인 +' + got);

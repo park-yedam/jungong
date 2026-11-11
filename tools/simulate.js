@@ -14,6 +14,8 @@ const TURN_LIMIT = 40;          // 이 턴을 넘기면 끝나지 않는 판으�
 // 4·5번 현장용 확장 덱 예시 (흙막이로 방호, 보온양생으로 한파 대응)
 const EXP_DECK = ['rebar', 'rebar', 'form', 'form', 'pour', 'pc', 'pump', 'tower', 'earth', 'earth', 'warmcure', 'redesign'];
 const deckFor = site => (site.no >= 4 ? EXP_DECK : JG.STARTER_DECK);
+// 새 카드로 짠 센 덱 (카드 확장 뒤 너무 쉬워지지 않는지 지켜보기용)
+const NEW_DECK = ['rebar', 'rebar', 'form', 'form', 'scaffold', 'scaffold', 'payment', 'payment', 'welder', 'multi', 'multi', 'pump'];
 
 // 상태가 규칙을 벗어나지 않았는지 검사한다. 벗어나면 오류를 던진다.
 function check(s) {
@@ -72,9 +74,10 @@ function greedyTurn(s) {
     act(s, () => E.shop(s, k));
   }
   for (let i = 0; i < R.zones; i++) {
-    if (s.over || E.whyCantHit(s, i)) continue;
-    const gi = E.guardIndex(s), leak = s.probs.findIndex(p => p && p.drain);
-    act(s, () => E.hit(s, i, gi >= 0 ? gi : leak >= 0 ? leak : 'building'));
+    while (!s.over && !E.whyCantHit(s, i)) {   // 연속 망치질 작업팀은 두 번
+      const gi = E.guardIndex(s), leak = s.probs.findIndex(p => p && p.drain);
+      act(s, () => E.hit(s, i, gi >= 0 ? gi : leak >= 0 ? leak : 'building'));
+    }
   }
   if (!s.over) act(s, () => E.endTurn(s));
 }
@@ -96,7 +99,7 @@ const ALL = Object.keys(JG.CARDS);
 const randomDeck = n => E.shuffle(ALL, n + 7).slice(0, 12);
 
 function playGame(site, n, bot, cfg) {
-  const deck = bot === 'random' ? randomDeck(n) : deckFor(site);
+  const deck = bot === 'random' ? randomDeck(n) : cfg.deck || deckFor(site);
   const s = E.newGame({ siteId: site.id, pledge: PLEDGES[n % PLEDGES.length], seed: n + 1, deck, difficulty: cfg.difficulty, pool: bot === 'random' ? ALL : [...new Set(deck)] });
   check(s);
   const rnd = E.random(n + 1000);
@@ -124,7 +127,7 @@ function run(bot, title, cfg) {
       }
     }
     const avg = st.done ? st.turns / st.done : 0, sec = Math.round(avg * SECONDS_PER_TURN);
-    console.log(site.no + '. ' + site.name + (bot === 'greedy' && site.no >= 4 ? ' (확장 덱)' : '')
+    console.log(site.no + '. ' + site.name + (bot === 'greedy' && site.no >= 4 && !cfg.deck ? ' (확장 덱)' : '')
       + ' | 준공 ' + Math.round(st.wins / GAMES * 100) + '%'
       + ' | 평균 ' + avg.toFixed(1) + '턴 (예상 ' + Math.floor(sec / 60) + '분 ' + (sec % 60) + '초)'
       + ' | 남은 공기 ' + (st.wins ? (st.days / st.wins).toFixed(1) + '일' : '-')
@@ -135,6 +138,7 @@ function run(bot, title, cfg) {
 console.log('준공! 자동 대전 시뮬레이션 (설정마다 현장별 ' + GAMES + '판, 아침 TBM 다짐 3종을 번갈아 고름)');
 console.log('똑똑한 봇: 1~3번 현장은 기본 덱, 4~5번 현장은 확장 덱(' + EXP_DECK.map(id => JG.CARDS[id].name).join(', ') + ')');
 ['easy', 'normal', 'hard'].forEach(d => run('greedy', '똑똑한 봇 · 난이도 ' + JG.DIFFICULTY[d].name, { difficulty: d }));
+['normal', 'hard'].forEach(d => run('greedy', '똑똑한 봇 · 난이도 ' + JG.DIFFICULTY[d].name + ' · 새 카드 센 덱(' + NEW_DECK.map(id => JG.CARDS[id].name).join(', ') + ')', { difficulty: d, deck: NEW_DECK }));
 
 // 데일리 현장: 2026년 1월 1일부터 하루씩, 확장 덱, 보통
 (() => {
