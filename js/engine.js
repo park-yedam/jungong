@@ -357,8 +357,33 @@
     return result(true, msg, events);
   }
 
+  // ---------- 미리 보기 (화면 안내용). 상태 사본으로 해 보고 결과만 알려 준다 (s는 바꾸지 않음) ----------
+  // 지금 턴을 끝내면 현장 턴에 일어날 일
+  //   probs[칸]: 그 문제가 할 행동 목록 [{ to: 작업팀 칸 | 'calendar' | 'shield', n }]
+  //   my[칸]: 그 작업팀이 받을 피해 { n, out } (안 맞으면 null), days: 깎일 공기, lose: 공기 지연으로 끝나는지
+  function preview(s) {
+    const t = JSON.parse(JSON.stringify(s)), res = endTurn(t);
+    const p = { probs: s.probs.map(() => []), my: s.my.map(() => null), days: s.days - t.days, lose: t.over === 'lose' };
+    res.events.forEach(e => {
+      if (e.t === 'hitWorker') {
+        p.probs[e.from].push({ to: e.zone, n: e.n });
+        p.my[e.zone] = { n: (p.my[e.zone] ? p.my[e.zone].n : 0) + e.n, out: false };
+      }
+      if (e.t === 'out') p.my[e.zone].out = true;
+      if ((e.t === 'calendar' || e.t === 'shield') && e.from != null) p.probs[e.from].push({ to: e.t, n: e.n || 0 });
+    });
+    return p;
+  }
+  // i번 작업팀이 target(문제 칸 번호)을 치면: { solved, left: 남는 체력, back: 되치기 피해, out: 퇴장 } (칠 수 없으면 null)
+  function previewHit(s, i, target) {
+    const t = JSON.parse(JSON.stringify(s)), res = hit(t, i, target);
+    if (!res.ok) return null;
+    const h = res.events.find(e => e.t === 'hit');
+    return { solved: !t.probs[target], left: t.probs[target] ? t.probs[target].hp : 0, back: h.back, out: !t.my[i] };
+  }
+
   JG.engine = {
-    newGame, playCard, hit, order, endTurn,
+    newGame, playCard, hit, order, endTurn, preview, previewHit,
     whyCantPlay, whyCantHit, whyCantOrder,
     atkOf, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
     random, shuffle, eun, ga, eul, ro, ieyo

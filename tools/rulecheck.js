@@ -290,6 +290,64 @@ t('용어 OX: 늘 3문제, O와 X가 적어도 하나씩', qz.every(q => q.lengt
 t('용어 OX: X 문제는 다른 설명을 보여 줌, O 문제는 바른 설명', qz.every(q => q.every(x => (x.answer ? x.shown === x.correct : x.shown !== x.correct))));
 t('용어 OX: 낸 카드가 적어도 3문제', JG.lesson.quiz(Object.assign(E.newGame({ siteId: 'house', seed: 1 }), {}), 5).length === 3);
 
+// ---- 개선 4단계: 문제 행동 미리 보기 ----
+// 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
+// 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다
+{
+  const SITES = ['house', 'retail', 'apart', 'winter', 'deep'], DECK = ['rebar', 'rebar', 'form', 'form', 'pour', 'pump', 'shore', 'safety', 'signal', 'earth', 'gangform', 'wetcure'];
+  let turns = 0, hits = 0, bad = [], changed = 0, withAction = 0;
+  const actual = (before, s, res) => {
+    const a = { probs: before.probs.map(() => []), my: before.my.map(() => null), days: before.days - s.days, lose: s.over === 'lose' };
+    res.events.forEach(e => {
+      if (e.t === 'hitWorker') { a.probs[e.from].push({ to: e.zone, n: e.n }); a.my[e.zone] = { n: (a.my[e.zone] ? a.my[e.zone].n : 0) + e.n, out: false }; }
+      if (e.t === 'out') a.my[e.zone].out = true;
+      if ((e.t === 'calendar' || e.t === 'shield') && e.from != null) a.probs[e.from].push({ to: e.t, n: e.n || 0 });
+    });
+    return a;
+  };
+  for (let g = 0; g < 400; g++) {
+    const rnd = E.random(1000 + g), pick = arr => arr[Math.floor(rnd() * arr.length)];
+    const s = E.newGame({ siteId: SITES[g % 5], seed: g + 1, deck: g % 2 ? DECK : null, pledge: ['chant', null, 'inspect'][g % 3], difficulty: ['easy', 'normal', 'hard'][g % 3] });
+    for (let turn = 0; turn < 16 && !s.over; turn++) {
+      for (let k = 0; k < 4; k++) {   // 카드 내기 (빈 칸 또는 대상 무작위)
+        const h = Math.floor(rnd() * s.hand.length);
+        if (!s.hand.length || E.whyCantPlay(s, h)) continue;
+        const c = JG.CARDS[s.hand[h]];
+        const z = c.kind === 'crew' ? s.my.findIndex(w => !w) : c.target === 'ally' ? s.my.findIndex(Boolean) : c.target === 'problem' ? s.probs.findIndex(Boolean) : null;
+        E.playCard(s, h, z);
+      }
+      for (let i = 0; i < 4; i++) {   // 망치질 (문제 또는 건물 무작위)
+        if (E.whyCantHit(s, i) || s.over) continue;
+        const targets = s.probs.map((p, k) => (p ? k : -1)).filter(k => k >= 0);
+        const target = targets.length && rnd() < 0.6 ? pick(targets) : 'building';
+        if (target !== 'building') {
+          const snap = JSON.stringify(s), pv = E.previewHit(s, i, target);
+          if (JSON.stringify(s) !== snap) changed++;
+          const res = E.hit(s, i, target);
+          if (!!pv !== res.ok) { bad.push('망치질 미리 보기 가능 여부'); continue; }
+          if (!res.ok) continue;
+          hits++;
+          const hEv = res.events.find(e => e.t === 'hit');
+          const real = { solved: !s.probs[target], left: s.probs[target] ? s.probs[target].hp : 0, back: hEv.back, out: !s.my[i] };
+          if (JSON.stringify(real) !== JSON.stringify(pv)) bad.push('망치질 ' + JSON.stringify(pv) + ' / 실제 ' + JSON.stringify(real));
+        } else E.hit(s, i, 'building');
+      }
+      if (s.over) break;
+      const snap = JSON.stringify(s), pv = E.preview(s);
+      if (JSON.stringify(s) !== snap) changed++;
+      const before = JSON.parse(snap), res = E.endTurn(s), real = actual(before, s, res);
+      turns++;
+      if (pv.probs.some(a => a.length)) withAction++;
+      if (JSON.stringify(real) !== JSON.stringify(pv)) bad.push(SITES[g % 5] + ' ' + g + '판 ' + before.turn + '턴: 예상 ' + JSON.stringify(pv) + ' / 실제 ' + JSON.stringify(real));
+    }
+  }
+  t('미리 보기가 상태를 바꾸지 않음 (' + changed + '번 바뀜)', changed === 0);
+  t('현장 턴 예상 = 실제 (' + turns + '턴, 문제가 움직인 턴 ' + withAction + ')', !bad.some(b => !b.startsWith('망치질')) && turns > 2000 && withAction > 1000);
+  t('망치질 예상 = 실제 (' + hits + '번)', !bad.some(b => b.startsWith('망치질')) && hits > 500);
+  if (bad.length) console.log('  다른 예: ' + bad.slice(0, 3).join('\n  '));
+  console.log('  미리 보기 비교: 판 400개, 현장 턴 ' + turns + '번(문제가 움직인 턴 ' + withAction + '), 망치질 ' + hits + '번, 다른 곳 ' + bad.length + '개');
+}
+
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');
 t('조사: 복합 상가예요 / 도서관이에요', E.ieyo('복합 상가') === '복합 상가예요' && E.ieyo('도서관') === '도서관이에요');
