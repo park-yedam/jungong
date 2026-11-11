@@ -12,7 +12,7 @@ var JG = globalThis.JG = globalThis.JG || {};
 JG.CONDITIONS = {
   rain: { name: '집중호우', weather: '비', text: '타설팀 공격 -1', tradeAtk: { concrete: -1 } },
   cold: { name: '한파', weather: '눈', text: '양생이 1턴 늦게 끝남', cureDelay: 1 },
-  soft: { name: '연약지반', weather: '땅', text: '방호 작업팀이 없으면 턴마다 공기 -1', needGuard: 1 }
+  soft: { name: '연약지반', weather: '땅', text: '방호 없으면 턴마다 공기 -1', needGuard: 1 }
 };
 
 JG.SITES = [

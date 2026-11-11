@@ -2,11 +2,13 @@
 // 한 번 본 것은 도감에 쌓인다. 무대 위에 덮어 그리는 창이라 어느 화면에서나 열 수 있다.
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc;
-  const TRADE = { rebar: '철근', formwork: '형틀', concrete: '콘크리트', equipment: '장비', safety: '안전', method: '공법' };
+  const TRADE = { rebar: '철근', formwork: '형틀·가설', concrete: '콘크리트', equipment: '장비', safety: '안전', method: '공법' };
   let cur = null;   // { kind: 'card' | 'prob', id }
 
   const keywordsOf = o => ['guard', 'rush', 'cure', 'prerequisite'].filter(k => o[k]).map(k => JG.KEYWORDS[k]);
   const source = o => o.loreSource || '검토 중 (교재·표준시방서와 대조 예정)';
+  // 이 카드·문제에서 만나는 현장 말
+  const slangRow = o => { const s = o.slang && JG.SLANG[o.slang]; return s ? [['현장 말', '"' + s.said + '" → 바른 말: ' + s.proper]] : []; };
 
   // 창에 넣을 내용: 제목, 그림, 한 줄 정보, [소제목, 글] 목록
   function content() {
@@ -17,7 +19,7 @@
         title: c.name, sprite: cur.id, meta, effect: '카드 효과: ' + c.text,
         rows: [['용어 풀이', c.term], ['알아 두기', c.lore]]
           .concat(keywordsOf(c).map(k => ['키워드 ' + k.name, k.rule + '. 현장에서는: ' + k.meaning]))
-          .concat([['출처', source(c)]])
+          .concat(slangRow(c), [['출처', source(c)]])
       };
     }
     const p = JG.PROBLEMS[cur.id];
@@ -26,7 +28,7 @@
       effect: '요령: ' + p.tip,
       rows: [['현장에서는', p.lore]]
         .concat(keywordsOf(p).map(k => ['키워드 ' + k.name, k.rule + '. 현장에서는: ' + k.meaning]))
-        .concat([['출처', source(p)]])
+        .concat(slangRow(p), [['출처', source(p)]])
     };
   }
 
@@ -42,6 +44,8 @@
       if (!(kind === 'card' ? JG.CARDS[id] : kind === 'prob' ? JG.PROBLEMS[id] : null)) return false;
       cur = { kind, id };
       JG.progress.discover(kind, id);
+      const o = kind === 'card' ? JG.CARDS[id] : JG.PROBLEMS[id];
+      if (o.slang) JG.progress.seeSlang(o.slang);
       return true;
     },
     close() { cur = null; },

@@ -13,6 +13,8 @@ JG.RULES = {
   orderCost: 2,          // 작업지시 코인
   orderAtk: 1,           // 작업지시로 오르는 공격력 (이번 턴만)
   bricksPerFloor: 4,     // 벽돌 4칸 = 1층
+  deckSize: 12,          // 덱 장수
+  maxCopies: 2,          // 덱에 같은 카드 최대 장수
   stars: [10, 5]         // 준공 때 남은 공기가 10일 이상 ★3, 5일 이상 ★2, 그 아래 ★1
 };
 

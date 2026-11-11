@@ -31,7 +31,7 @@
       JG.sound.play('tick');
       if (act === 'quick') JG.app.show('tbm', { siteId: JG.progress.nextSite().id });
       else if (act === 'continue' && JG.save.data.game) JG.app.show('battle', { resume: true });
-      else if (act === 'sites' || act === 'dex' || act === 'settings') JG.app.show(act);
+      else if (['sites', 'dex', 'deck', 'settings'].includes(act)) JG.app.show(act);
     },
 
     render() {
@@ -61,7 +61,7 @@
       if (game && gsite) rows.push({ act: 'continue', h: 56, style: L.PAPER,
         label: '이어하기', sub: gsite.name + ' · ' + game.turn + '턴', aria: '이어하기. ' + gsite.name + ' ' + game.turn + '턴' });
       rows.push({ act: 'sites', h: 56, style: L.PAPER, label: '현장 고르기', sub: '모은 별 ' + stars + '개', aria: '현장 고르기. 모은 별 ' + stars + '개' });
-      rows.push({ h: 48, pair: [['dex', '도감'], ['settings', '설정']] });
+      rows.push({ h: 48, pair: [['dex', '도감'], ['deck', '자재 창고'], ['settings', '설정']] });
 
       const bx = 564, by = 228, pad = 21, gap = 12;
       const bh = pad * 2 + 6 + rows.reduce((n, r) => n + r.h, 0) + gap * (rows.length - 1);
@@ -71,7 +71,7 @@
       h += '<div style="' + L.at(bx, by, 360, bh) + ' box-sizing: border-box; ' + L.WOOD + '">';
       let y = pad;
       rows.forEach(r => {
-        if (r.pair) r.pair.forEach(([act, label], i) => { h += button(act, pad + i * 162, y, 150, r.h, L.PAPER, label, '', label); });
+        if (r.pair) r.pair.forEach(([act, label], i) => { h += button(act, pad + i * 108, y, 96, r.h, L.PAPER, label, '', label); });
         else h += button(r.act, pad, y, 312, r.h, r.style, r.label, r.sub, r.aria);
         y += r.h + gap;
       });

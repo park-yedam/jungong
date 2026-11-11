@@ -17,22 +17,24 @@
   }
 
   // 카드·문제 칸 하나 (228×250). 본 것은 그림과 이름, 못 본 것은 ??? 와 찾는 방법
+  // 칸 하나 (195×175, 한 줄에 6칸)
+  const TW = 195, TH = 175;
   function tile(kind, id, x, y) {
     const o = kind === 'card' ? JG.CARDS[id] : JG.PROBLEMS[id];
     const seen = d().dex[kind === 'card' ? 'cards' : 'probs'].includes(id);
     if (!seen) {
       const hint = kind === 'card' && o.expansion ? '현장을 처음 준공하면 받아요' : '대전에서 길게 눌러 보세요';
-      return '<div style="' + L.at(x, y, 228, 250) + ' box-sizing: border-box; background: #D9C08A; border: 3px dashed #8B5A2B; text-align: center">'
-        + '<div style="' + L.at(0, 84, 222) + ' font-size: 32px; line-height: 32px; color: #8B5A2B">???</div>'
-        + '<div style="' + L.at(12, 150, 198) + ' line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(hint) + '</div></div>';
+      return '<div style="' + L.at(x, y, TW, TH) + ' box-sizing: border-box; background: #D9C08A; border: 3px dashed #8B5A2B; text-align: center">'
+        + '<div style="' + L.at(0, 48, TW - 6) + ' font-size: 32px; line-height: 32px; color: #8B5A2B">???</div>'
+        + '<div style="' + L.at(12, 100, TW - 30) + ' line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(hint) + '</div></div>';
     }
     const [sw, sh] = spriteSize(id), band = kind === 'card' ? o.band : '#E85D3A';
     const sub = kind === 'card' ? (o.kind === 'crew' ? '작업팀' : '공법') + ' · 코인 ' + o.cost : '공격 ' + o.atk + ' · 체력 ' + o.hp;
-    return '<button type="button" data-act="info:' + kind + ':' + id + '" aria-label="' + esc(o.name + ' 풀이 보기') + '" style="' + L.at(x, y, 228, 250) + ' ' + L.BTN + '; ' + L.PAPER + '">'
-      + '<span style="' + L.at(6, 6, 210, 30) + ' display: block; background: ' + band + '; color: #FFFFFF; line-height: 30px; ' + L.OUT1 + '">' + esc(o.name) + '</span>'
-      + L.sprite(id, Math.round((222 - sw) / 2), 48 + Math.round((120 - sh) / 2))
-      + '<span style="' + L.at(0, 180, 222) + ' display: block; color: #5C3A1E">' + esc(sub) + '</span>'
-      + '<span style="' + L.at(0, 208, 222) + ' display: block; color: #3E5C8A">눌러서 풀이 보기</span></button>';
+    return '<button type="button" data-act="info:' + kind + ':' + id + '" aria-label="' + esc(o.name + ' 풀이 보기') + '" style="' + L.at(x, y, TW, TH) + ' ' + L.BTN + '; ' + L.PAPER + '">'
+      + '<span style="' + L.at(3, 3, TW - 12, 24) + ' display: block; background: ' + band + '; color: #FFFFFF; line-height: 24px; ' + L.OUT1 + '">' + esc(o.name) + '</span>'
+      + L.sprite(id, Math.round((TW - 6 - sw) / 2), 32 + Math.round((80 - sh) / 2))
+      + '<span style="' + L.at(0, TH - 56, TW - 6) + ' display: block; color: #5C3A1E">' + esc(sub) + '</span>'
+      + '<span style="' + L.at(0, TH - 32, TW - 6) + ' display: block; color: #3E5C8A">눌러서 풀이 보기</span></button>';
   }
 
   function slangRow(id, i) {
@@ -71,7 +73,7 @@
         Object.keys(JG.SLANG).forEach((id, i) => { h += slangRow(id, i); });
       } else {
         const ids = Object.keys(tab === 'card' ? JG.CARDS : JG.PROBLEMS);
-        ids.forEach((id, i) => { h += tile(tab, id, 12 + (i % 5) * 243, 12 + Math.floor(i / 5) * 268); });
+        ids.forEach((id, i) => { h += tile(tab, id, (i % 6) * (TW + 12), Math.floor(i / 6) * (TH + 12)); });
       }
       h += '</div></div>';
       h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">◀ 타이틀로</button>';

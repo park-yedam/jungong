@@ -1,8 +1,8 @@
 // 준공 결과 화면 (시안 ③): 기념사진, 별, 이번 판 공정표, 칭호, 새 카드, 오늘의 현장 말
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc, E = JG.engine;
-  const TRADES = [['rebar', '철근', '#E07A3F'], ['formwork', '형틀', '#B5835A'], ['concrete', '타설', '#9AA0A6'], ['equipment', '장비', '#F2C230'], ['safety', '안전', '#5BB65F']];
-  const VEHICLES = ['pump', 'tower'];   // 사진에서 사람 대신 차로 그리는 카드
+  const TRADES = [['rebar', '철근', '#E07A3F'], ['formwork', '형틀·가설', '#B5835A'], ['concrete', '타설', '#9AA0A6'], ['equipment', '장비', '#F2C230'], ['safety', '안전', '#5BB65F']];
+  const NOT_PEOPLE = ['pump', 'tower', 'shore', 'earth'];   // 사진에 사람으로 세우지 않는 카드 (장비, 가설물)
   let g, info, msg, today;
 
   const site = () => E.siteOf(g);
@@ -29,10 +29,14 @@
     for (let t = 1; t <= N; t++) h += txt(x0 + (t - 1) * colW, 36, colW >= 54 ? t + '턴' : String(t), 'width: ' + colW + 'px; text-align: center; color: #5C3A1E');
 
     h += txt(12, 64, '층 완성', 'color: #8B3A1E');
+    // 같은 턴에 완성한 층은 한 표시로 (지하층은 B2, B1)
+    const b = site().basement || 0, short = f => (f <= b ? 'B' + (b - f + 1) : (f - b) + '층');
     const byTurn = {};
     g.rec.floors.forEach((t, f) => { (byTurn[t] = byTurn[t] || []).push(f + 1); });
     Object.keys(byTurn).forEach(t => {
-      const label = byTurn[t].join('·') + '층', w = 28 + 9 * (label.length - 1);
+      const fl = byTurn[t], unit = colW >= 54 ? '층' : '';   // 칸이 좁으면 '층'을 빼서 옆 표시와 겹치지 않게
+      const label = fl.every(f => f > b) ? fl.map(f => f - b).join('·') + unit : fl.map(short).join('·').replace(/층/g, unit);
+      const w = 12 + [...label].reduce((n, ch) => n + (ch === '층' ? 16 : 9), 0);
       const x = Math.round(x0 + (t - 1) * colW + colW / 2 - w / 2);
       h += '<div style="' + L.at(x, 60, w, 24) + ' box-sizing: border-box; background: #FFE08A; border: 3px solid #3B2A20; text-align: center; line-height: 18px">' + esc(label) + '</div>';
     });
@@ -54,7 +58,7 @@
 
   // 공정표를 읽기 프로그램용 문장으로
   function ganttAria() {
-    const floors = g.rec.floors.map((t, f) => (f + 1) + '층 ' + t + '턴').join(', ');
+    const floors = g.rec.floors.map((t, f) => E.floorName(g, f + 1) + ' ' + t + '턴').join(', ');
     const rows = TRADES.map(([id, name]) => {
       const turns = g.rec.work.map((w, k) => (w || []).includes(id) ? k + 1 : 0).filter(Boolean);
       return name + ' ' + (turns.length ? turns.join('·') + '턴' : '없음');
@@ -70,18 +74,28 @@
       + txt(12, 102, next ? '다음 칭호: ' + next.name + ' (별 ' + next.stars + '개)' : '가장 높은 칭호예요!', 'color: #5C3A1E');
   }
 
+  // 새 카드 칸: 처음 준공한 현장이면 보상 카드(보통 2장), 아니면 '이번에는 없어요'
   function cardPanel() {
-    let h = txt(12, 12, '새 카드', 'color: #B83E3C');
-    if (!info.reward) {
+    const list = info.rewards || [];
+    let h = txt(12, 12, list.length ? '새 카드 ' + list.length + '장 · 자재 창고로' : '새 카드', 'color: #B83E3C');
+    if (!list.length) {
       return h + txt(12, 40, '이번에는 없어요', 'font-size: 32px; line-height: 32px')
         + '<p style="' + L.at(12, 82, 264) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">현장을 처음 준공하면 확장 카드를 받아요.</p>';
     }
-    const c = JG.CARDS[info.reward], [sw, sh] = spriteSize(info.reward);
-    const meta = '코인 ' + c.cost + ' · ' + (c.kind === 'crew' ? c.atk + '/' + c.hp : '공법') + ' · ' + c.text;
-    h += '<div aria-hidden="true" style="' + L.at(12, 36, 72, 84) + ' box-sizing: border-box; ' + L.PAPER + '">'
-      + L.sprite(info.reward, Math.round((66 - sw) / 2), Math.round((78 - sh) / 2)) + '</div>';
-    h += txt(96, 40, c.name, 'font-size: 32px; line-height: 32px; white-space: nowrap');
-    h += '<p style="' + L.at(96, 82, 180) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(meta) + '</p>';
+    const box = (id, x) => { const [sw, sh] = spriteSize(id); return '<div aria-hidden="true" style="' + L.at(x, 36, 66, 84) + ' box-sizing: border-box; ' + L.PAPER + '">' + L.sprite(id, Math.round((60 - sw) / 2), Math.round((78 - sh) / 2)) + '</div>'; };
+    if (list.length === 1) {
+      const c = JG.CARDS[list[0]], meta = '코인 ' + c.cost + ' · ' + (c.kind === 'crew' ? c.atk + '/' + c.hp : '공법') + ' · ' + c.text;
+      return h + box(list[0], 12) + txt(90, 40, c.name, 'font-size: 32px; line-height: 32px; white-space: nowrap')
+        + '<p style="' + L.at(90, 82, 186) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(meta) + '</p>';
+    }
+    // 2장이면 한 줄에 하나씩: 반 크기 그림 + 이름 + 능력치
+    list.slice(0, 2).forEach((id, i) => {
+      const c = JG.CARDS[id], [sw, sh] = spriteSize(id), y = 34 + i * 46;
+      h += '<div aria-hidden="true" style="' + L.at(12, y, 42, 42) + ' box-sizing: border-box; ' + L.PAPER + '; overflow: hidden">'
+        + '<div style="' + L.at(Math.round((36 - sw / 2) / 2), Math.round((36 - sh / 2) / 2)) + ' transform: scale(0.5); transform-origin: 0 0">' + L.sprite(id, 0, 0) + '</div></div>'
+        + txt(64, y + 3, c.name, 'white-space: nowrap')
+        + txt(64, y + 23, (c.kind === 'crew' ? c.atk + '/' + c.hp : '공법') + ' · 코인 ' + c.cost, 'color: #5C3A1E; white-space: nowrap');
+    });
     return h;
   }
 
@@ -91,7 +105,7 @@
 
   // 사진에 넣을 값: 층수, 이번 판에 낸 작업팀(차 제외), 펌프카를 썼는지, 날짜
   function photoData() {
-    const crew = g.rec.cards.filter(id => JG.CARDS[id].kind === 'crew' && !VEHICLES.includes(id));
+    const crew = g.rec.cards.filter(id => JG.CARDS[id].kind === 'crew' && !NOT_PEOPLE.includes(id));
     return { floors: E.totalFloors(g), crew, pump: g.rec.cards.includes('pump'), dateText: today + ' · ' + site().name + ' 준공' };
   }
 
@@ -114,7 +128,7 @@
       today = d.getFullYear() + '.' + pad2(d.getMonth() + 1) + '.' + pad2(d.getDate());
       JG.progress.seeSlang('shimai');
       msg = '준공! ' + E.eul(site().name) + ' ' + g.turn + '턴 만에 다 올렸어요. 별 ' + info.stars + '개.'
-        + (info.reward ? ' 새 카드 ' + E.eul(JG.CARDS[info.reward].name) + ' 받았어요.' : '')
+        + ((info.rewards || []).length ? ' 새 카드 ' + E.eul(info.rewards.map(id => JG.CARDS[id].name).join(', ')) + ' 받았어요.' : '')
         + (info.rank > info.rankBefore ? ' 칭호가 ' + E.ro(JG.RANKS[info.rank].name) + ' 올랐어요!' : '');
     },
     msg: () => msg,
