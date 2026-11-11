@@ -173,8 +173,8 @@
     }
     if (parts[0] === 'info') { openInfo({ dataset: { info: parts.slice(1).join(':'), act: el.dataset.act } }); return; }   // 도감 칸 누르기
     const before = screen;
-    screen.click(parts[0], Number(parts[1]), parts[1]);   // 번호, 그리고 글자 그대로(카드 id 등)
-    if (screen === before) JG.app.render();   // 화면이 바뀌었으면 show()가 이미 그렸다
+    const held = screen.click(parts[0], Number(parts[1]), parts[1]);   // 번호, 그리고 글자 그대로(카드 id 등)
+    if (screen === before && held !== 'hold') JG.app.render();   // 화면이 바뀌었으면 show()가 이미 그렸다. 'hold'면 화면이 연출을 마친 뒤 직접 그린다
   });
 
   // 길게 누르기 (0.5초). 손가락이 10px 넘게 움직이면 취소

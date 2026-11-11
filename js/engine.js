@@ -271,11 +271,11 @@
     if (s.over) return fail('판이 끝났어요.');
     const r = R(), events = [], snap = !!(opts && opts.snapshots), cond = conditionOf(s);
     const say = (t, text, extra) => events.push(Object.assign({ t, text }, extra, snap ? { state: JSON.parse(JSON.stringify(s)) } : null));
-    // 달력(내 공기)이 받는 피해. 안전 구호 다짐이 있으면 첫 피해 1번을 막는다
-    const hitCalendar = (n, who) => {
+    // 달력(내 공기)이 받는 피해. 안전 구호 다짐이 있으면 첫 피해 1번을 막는다. from: 친 문제 칸 번호 (화면 연출용, 현장 조건이면 없음)
+    const hitCalendar = (n, who, from) => {
       if (n <= 0) return;
-      if (s.shield > 0) { s.shield -= 1; say('shield', who + '의 피해를 안전 구호가 막았어요.'); return; }
-      s.days -= n; say('calendar', who + ': 공기 -' + n + '일.', { n });
+      if (s.shield > 0) { s.shield -= 1; say('shield', who + '의 피해를 안전 구호가 막았어요.', { from }); return; }
+      s.days -= n; say('calendar', who + ': 공기 -' + n + '일.', { n, from });
     };
 
     mark(s);
@@ -284,7 +284,7 @@
 
     // 1. 연약지반: 방호 작업팀이 없으면 공기가 깎인다. 누수 같은 문제도 공기를 깎는다
     if (cond && cond.needGuard && !s.my.some(w => w && w.guard)) hitCalendar(cond.needGuard, cond.name + '(방호 작업팀 없음)');
-    s.probs.forEach(p => { if (p && p.drain) hitCalendar(p.drain, problem(p.id).name); });
+    s.probs.forEach((p, pi) => { if (p && p.drain) hitCalendar(p.drain, problem(p.id).name, pi); });
 
     // 2. 문제 카드가 차례로 친다. 대상: 방호 작업팀 → 한 번에 퇴장시킬 수 있는 작업팀 → 달력
     //    (작업팀만 치는 문제는 달력 대신 첫 작업팀, 작업팀이 없으면 쉰다)
@@ -294,7 +294,7 @@
       let ti = s.my.findIndex(w => w && w.guard);
       if (ti < 0) ti = s.my.findIndex((w, k) => w && w.hp <= dmgTo(k));
       if (ti < 0 && d.workersOnly) ti = s.my.findIndex(Boolean);
-      if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name); return; }
+      if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name, pi); return; }
       const w = s.my[ti], wname = card(w.id).name, dmg = dmgTo(ti);
       w.hp -= dmg; p.hp -= atkOf(s, w);   // 작업팀은 맞으면서 자기 공격력만큼 되친다
       say('hitWorker', d.name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti });

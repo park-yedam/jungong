@@ -78,12 +78,12 @@
     return g.turn + '턴이에요. 초록 테두리가 지금 할 수 있는 행동이에요.' + (late ? ' 기준 턴이 지나서 매 턴 지체상금이 붙어요. 서둘러요!' : '');
   }
 
-  // 엔진 결과를 안내 문구, 말풍선, 효과음에 반영
-  function apply(res) {
+  // 엔진 결과를 안내 문구, 말풍선, 효과음에 반영 (quiet: 효과음은 연출에서 부딪히는 순간에 낸다)
+  function apply(res, quiet) {
     ui.msg = res.msg;
     const b = res.events.filter(e => e.t === 'bubble').pop();
     ui.bubble = b ? { zone: b.zone, text: b.text } : null;
-    if (res.ok) JG.sound.play(effectOf(res.events));
+    if (res.ok && !quiet) JG.sound.play(effectOf(res.events));
   }
   // 준공 "빠바밤", 층 완성 "빰!", 망치질 "통", 문제 해결, 그 밖(카드 내기·작업지시)은 코인 "짤랑"
   function effectOf(events) {
@@ -98,6 +98,44 @@
   const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', coinDrain: 'thud', hitWorker: 'hammer', solved: 'solved', cured: 'solved', cancelled: 'solved', lose: 'lose', newProblem: 'tick', shield: 'tick', burn: 'tick', swap: 'tick' };
   const selWorker = () => (ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null);
   const selCard = () => (ui.sel && ui.sel.t === 'card' ? JG.CARDS[g.hand[ui.sel.i]] : null);
+
+  // ---------- 연출 (js/fx.js) ----------
+  // 엔진은 이미 새 상태인데 화면은 아직 옛 상태일 때, 옛 화면에서 돌진·사라지기를 보여 준 뒤 새 상태를 그린다.
+  // 'hold'를 돌려주면 app.js는 바로 다시 그리지 않는다. 연출 중에 다른 곳을 누르면 연출은 바로 끝난다(stopAnim)
+  const fx = JG.fx;
+  const at = act => document.querySelector('#screen [data-act="' + act + '"]');
+  const calendarEl = () => document.querySelector('#screen [data-fx="calendar"]');
+  let animId = 0;
+  const post = [];   // 다시 그린 직후에 할 연출 (카드 내려앉기 등)
+  function hold(run) {
+    const id = ++animId, live = () => id === animId;
+    const done = () => { if (live()) { ui.anim = false; JG.app.render(); } };
+    ui.anim = true;
+    Promise.resolve(run(live)).then(done, done);
+    return 'hold';
+  }
+  function stopAnim() {
+    if (!ui || !ui.anim) return;
+    ui.anim = false; animId++;
+    fx.skipAll();
+    JG.app.render();   // 옛 화면을 새 상태로 바꿔 둔 뒤 누른 것을 처리한다
+  }
+  // 작업팀(i)이 대상(문제 칸 번호 또는 'building')으로 돌진해 친다. 해결된 문제·퇴장한 작업팀은 흐려지며 사라진다
+  function animateHit(i, target, res) {
+    return hold(async live => {
+      const from = at('my:' + i), to = at(target === 'building' ? 'building' : 'prob:' + target);
+      await fx.lunge(from, fx.rectOf(to), () => {
+        if (!live()) return;
+        JG.sound.play(effectOf(res.events));
+        if (target !== 'building') { fx.flash(to); fx.shake(to); }
+      });
+      if (!live()) return;
+      await Promise.all([
+        res.events.some(e => e.t === 'solved') && fx.vanish(to),
+        res.events.some(e => e.t === 'out') && fx.vanish(from)
+      ]);
+    });
+  }
 
   // ---------- 누른 곳 처리 ----------
   function pickCard(i) {
@@ -120,6 +158,7 @@
       const res = E.playCard(g, ui.sel.i, i);   // 작업팀은 빈 칸에, 아군 공법은 작업팀에
       if (res.ok) ui.sel = null;
       apply(res);
+      if (res.ok && c.kind === 'crew') post.push(() => fx.land(at('my:' + i)));
       return;
     }
     const w = g.my[i];
@@ -141,27 +180,30 @@
       const res = E.playCard(g, ui.sel.i, i);
       if (res.ok) ui.sel = null;
       apply(res);
-      return;
+      return res.ok ? hold(() => fx.vanish(at('prob:' + i))) : undefined;
     }
     if (selWorker() === null) {
       const p = g.probs[i], d = p && JG.PROBLEMS[p.id];
       ui.msg = p ? d.name + ': 공격 ' + p.atk + ', 체력 ' + p.hp + '. ' + d.tip : '다음 턴에 예고된 문제 카드가 들어올 자리예요.';
       return;
     }
-    const res = E.hit(g, selWorker(), i);
+    const w = selWorker(), res = E.hit(g, w, i);
     if (res.ok) ui.sel = null;
-    apply(res);
+    apply(res, res.ok);
+    return res.ok ? animateHit(w, i, res) : undefined;
   }
 
   function hitBuilding() {
     if (selWorker() === null) { ui.msg = '건물: 벽돌 ' + g.bricks + '/' + g.totalBricks + '칸. 작업팀을 고른 뒤 건물을 누르면 벽돌이 쌓여요.'; return; }
-    const res = E.hit(g, selWorker(), 'building');
+    const w = selWorker(), res = E.hit(g, w, 'building');
     if (res.ok) ui.sel = null;
-    apply(res);
+    apply(res, res.ok);
+    return res.ok ? animateHit(w, 'building', res) : undefined;
   }
 
   // ---------- 턴 종료: 현장 턴을 사건 하나씩 보여 준다 (아무 곳이나 누르면 바로 끝) ----------
   function endTurn(prefix) {
+    stopAnim();
     ui.sel = null; ui.bubble = null;
     const before = clone(g), forecast = E.siteOf(g).forecast;
     const res = E.endTurn(g, { snapshots: true });
@@ -171,7 +213,7 @@
     const firstTime = e => e.t === 'newProblem' && before.fi < forecast.length && !forecast.slice(0, before.fi).includes(e.id);
     const tips = res.events.filter(firstTime).map(e => JG.PROBLEMS[e.id].name + ': ' + JG.PROBLEMS[e.id].tip);
     const frames = [{ state: before, msg: (prefix || '') + '현장 턴이에요. 현장이 움직여요...', sfx: 'tick' }]
-      .concat(res.events.map(e => ({ state: e.state, msg: e.text + (firstTime(e) ? ' ' + JG.PROBLEMS[e.id].tip : ''), sfx: REPLAY_SFX[e.t] })));
+      .concat(res.events.map(e => ({ e, state: e.state, msg: e.text + (firstTime(e) ? ' ' + JG.PROBLEMS[e.id].tip : ''), sfx: REPLAY_SFX[e.t] })));
 
     // 다 보여 준 뒤 남길 요약
     const parts = [], lost = before.days - g.days;
@@ -184,23 +226,43 @@
     const summary = parts.length ? '현장 턴: ' + parts.join(', ') + '.' : '현장 턴이 조용히 지나갔어요.';
     const final = g.over ? res.events[res.events.length - 1].text : [(prefix || '') + summary].concat(tips, turnStartText()).join(' ');
 
-    ui.replay = { frames, i: 0, final, timer: null };
-    const step = i => {
-      if (!ui.replay) return;
-      if (i >= frames.length) { finishReplay(); return; }
-      ui.replay.i = i;
-      ui.msg = frames[i].msg;
-      if (frames[i].sfx) JG.sound.play(frames[i].sfx);
-      JG.app.render();
-      ui.replay.timer = setTimeout(() => step(i + 1), i === 0 ? 500 : STEP_MS);
-    };
-    step(0);
+    ui.replay = { frames, i: 0, final };
+    runReplay(ui.replay);
+  }
+  // 사건 하나씩: 문제 카드가 작업팀·달력으로 돌진해 부딪히고, 퇴장·해결은 흐려지며 사라지고, 새 문제는 위에서 내려앉는다
+  async function runReplay(rp) {
+    const live = () => ui.replay === rp;
+    for (let i = 0; i < rp.frames.length; i++) {
+      const f = rp.frames[i], e = f.e;
+      const show = () => { if (!live()) return; rp.i = i; ui.msg = f.msg; JG.app.render(); };
+      if (!e) { show(); JG.sound.play(f.sfx); await fx.wait(500); }
+      else if (e.from != null) {   // 문제 카드의 공격 (작업팀, 달력, 안전 구호가 막음)
+        const to = e.t === 'hitWorker' ? at('my:' + e.zone) : calendarEl();
+        await fx.lunge(at('prob:' + e.from), fx.rectOf(to), () => {
+          if (!live()) return;
+          JG.sound.play(f.sfx); fx.flash(to); fx.shake(to);
+        });
+        show(); await fx.wait(300);
+      } else if (e.t === 'out' || e.t === 'solved') {
+        if (f.sfx) JG.sound.play(f.sfx);
+        await fx.vanish(at((e.t === 'out' ? 'my:' : 'prob:') + e.zone));
+        show(); await fx.wait(250);
+      } else {
+        show();
+        if (f.sfx) JG.sound.play(f.sfx);
+        if (e.t === 'newProblem') fx.land(at('prob:' + e.zone));
+        if (e.t === 'calendar' || e.t === 'penalty') fx.shake(calendarEl());
+        await fx.wait(STEP_MS);
+      }
+      if (!live()) return;
+    }
+    finishReplay();
   }
   function finishReplay() {
-    clearTimeout(ui.replay.timer);
     if (ui.replay.i < ui.replay.frames.length - 1 && g.over === 'lose') JG.sound.play('lose');   // 건너뛰어도 공기 지연 소리는 난다
     ui.msg = ui.replay.final;
     ui.replay = null;
+    fx.skipAll();
     startTurnTimer();   // 새 내 턴의 시간
     JG.app.render();
   }
@@ -216,13 +278,15 @@
     },
     leave() {
       clearInterval(ticker); ticker = null;
-      if (ui.replay) { clearTimeout(ui.replay.timer); ui.replay = null; }
+      ui.replay = null; ui.anim = false; animId++;   // 하던 연출은 이 화면을 다시 그리지 않는다
+      fx.skipAll();
     },
     msg: () => ui.msg,
     music: () => (g.turn > R.baseTurns ? 'night' : 'day'),   // 9턴부터 야간작업 곡
 
     click(act, n) {
       if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
+      stopAnim();   // 내 턴 연출 중이면 바로 끝내고 누른 것을 처리
       if (act === 'restart') { JG.app.show('tbm', tbmTarget()); return; }   // 새 판은 늘 아침 TBM부터
       if (act === 'exit') { JG.app.show(JG.app.hub); return; }
       if (act === 'sites') { JG.app.show('sites'); return; }
@@ -230,16 +294,19 @@
       if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
       if (g.over) return;
       ui.bubble = null;
+      let held;
       if (act === 'card') pickCard(n);
       else if (act === 'my') pickMy(n);
-      else if (act === 'prob') pickProb(n);
-      else if (act === 'building') hitBuilding();
+      else if (act === 'prob') held = pickProb(n);
+      else if (act === 'building') held = hitBuilding();
       else if (act === 'order') apply(E.order(g, selWorker()));
       else if (act === 'end') { endTurn(); return; }
       after();
+      return held;
     },
 
-    render() { return JG.battleView(view(), JG.esc); }
+    render() { return JG.battleView(view(), JG.esc); },
+    afterRender() { post.splice(0).forEach(run => run()); }
   };
 
   function pledgeStatus(s) {
@@ -300,14 +367,14 @@
       const atk = w ? E.atkOf(s, w) : 0;
       return {
         x: ZX[i], click: 'my:' + i, info: w ? 'card:' + w.id : '',
-        aria: w ? c.name + ', 공격 ' + atk + ', 체력 ' + w.hp + (ally ? '. 눌러서 ' + sc.name : '') : (place ? '빈 작업 구역. 여기에 놓기' : '빈 작업 구역'),
+        aria: w ? c.name + ', 공격 ' + atk + ', 체력 ' + Math.max(0, w.hp) + (ally ? '. 눌러서 ' + sc.name : '') : (place ? '빈 작업 구역. 여기에 놓기' : '빈 작업 구역'),
         occupied: !!w, empty: !w, emptyText: place ? '여기에 놓기' : '빈 작업 구역', emptyColor: place ? '#23602A' : '#8B5A2B',
         bg: w ? '#CF965C' : 'transparent',
         border: isSel ? '3px solid #FFE08A' : w ? '3px solid #8B5A2B' : (place ? '3px dashed #23602A' : '3px dashed #B07A47'),
         outline: isSel ? '3px solid #FFE08A' : (act || place || ally) ? '3px solid #7BD389' : '3px solid transparent',
         anim: (act || place || ally) ? PULSE : 'none',
         shadow: w ? SP[w.id] : '', spriteTop: w && isSmall(w.id) ? 36 : 24,
-        name: w ? c.name : '', atk, hp: w ? w.hp : 0,
+        name: w ? c.name : '', atk, hp: w ? Math.max(0, w.hp) : 0,
         tag: !w ? '' : w.curing ? (w.curing > 1 ? '양생 ' + w.curing + '턴' : '양생 중') : w.guard ? '방호' : canHit(i) ? '칠 수 있음' : (w.ready ? '대기' : '다음 턴부터'),
         tagColor: !w ? '#3B2A20' : w.curing ? '#2C4266' : w.guard ? '#8B3A1E' : canHit(i) ? '#23602A' : '#5C3A1E',
         bob: w && canHit(i) ? 'bob 1s steps(2) infinite' : 'none',
@@ -320,12 +387,12 @@
       const d = p ? JG.PROBLEMS[p.id] : null, target = (selW && p && (gi < 0 || p.guard)) || (probMode && !!p);
       return {
         x: ZX[i], click: 'prob:' + i, info: p ? 'prob:' + p.id : '',
-        aria: p ? d.name + ', 공격 ' + p.atk + ', 체력 ' + p.hp + (target ? (probMode ? '. 눌러서 ' + sc.name : '. 눌러서 망치질') : '') : '문제 카드 자리',
+        aria: p ? d.name + ', 공격 ' + p.atk + ', 체력 ' + Math.max(0, p.hp) + (target ? (probMode ? '. 눌러서 ' + sc.name : '. 눌러서 망치질') : '') : '문제 카드 자리',
         occupied: !!p, empty: !p, emptyText: '문제 자리', emptyColor: '#8B5A2B',
         bg: p ? '#D7A26C' : 'transparent',
         border: p ? '3px solid #E85D3A' : '3px dashed #B07A47',
         outline: target ? '3px solid #7BD389' : '3px solid transparent', anim: target ? PULSE : 'none',
-        shadow: p ? SP[p.id] : '', spriteTop: 36, name: p ? d.name : '', atk: p ? p.atk : 0, hp: p ? p.hp : 0,
+        shadow: p ? SP[p.id] : '', spriteTop: 36, name: p ? d.name : '', atk: p ? p.atk : 0, hp: p ? Math.max(0, p.hp) : 0,
         tag: p ? probTag(p) : '', tagColor: '#8B3A1E', bob: 'none',
         hasBubble: false, bubble: '', bx: 0
       };

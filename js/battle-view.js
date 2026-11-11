@@ -996,7 +996,7 @@ ${z.hasBubble ? `
 <div style="position: absolute; left: 0px; top: 786px; width: 1440px; height: 3px; background: #6B4420">
 </div>
 </div>
-<div style="position: absolute; left: 36px; top: 652px; width: 204px; height: 144px; box-sizing: border-box; background: #F4E4BC; border: 3px solid #3B2A20; box-shadow: inset 0 -3px 0 #E0C998">
+<div data-fx="calendar" style="position: absolute; left: 36px; top: 652px; width: 204px; height: 144px; box-sizing: border-box; background: #F4E4BC; border: 3px solid #3B2A20; box-shadow: inset 0 -3px 0 #E0C998">
 <div style="position: absolute; left: 3px; top: 0px; width: 192px; height: 30px; background: #E35D5B; border-bottom: 3px solid #3B2A20; box-sizing: border-box; font-size: 16px; line-height: 27px; text-align: center; color: #FFFFFF; text-shadow: 1px 0 #3B2A20, -1px 0 #3B2A20, 0 1px #3B2A20, 0 -1px #3B2A20, 1px 1px #3B2A20, -1px 1px #3B2A20, 1px -1px #3B2A20, -1px -1px #3B2A20">공기 (내 체력)</div>
 <div aria-hidden="true" style="position: absolute; left: 39px; top: -9px; width: 9px; height: 18px; background: #7E858C; border: 3px solid #3B2A20; box-sizing: border-box">
 </div>
