@@ -27,6 +27,19 @@ html, body {
   touch-action: manipulation;
 }
 
+/* 연출 층: 화면(#screen)을 다시 그려도 남는 층. 떠오르는 숫자·알림판·색종이를 여기에 그린다 */
+#fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1440px;
+  height: 810px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 30;
+  font-family: 'Galmuri11', monospace;
+}
+
 /* 코드 입력 칸은 글자를 고를 수 있게 */
 #stage input {
   -webkit-user-select: text;

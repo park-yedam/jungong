@@ -4,6 +4,7 @@
 (() => {
   const JG = globalThis.JG;
   const stage = document.getElementById('stage'), live = document.getElementById('live');
+  const screenEl = document.getElementById('screen');   // 화면을 그리는 곳 (연출 층 #fx는 그대로 둔다)
   JG.screens = {};
   JG.esc = x => String(x).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
@@ -134,7 +135,7 @@
     render() {
       const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.act : null;
       const infoOpen = JG.info.isOpen();
-      stage.innerHTML = screen.render() + (infoOpen ? JG.info.html() : '');   // 풀이 창은 화면 위에 덮어 그린다
+      screenEl.innerHTML = screen.render() + (infoOpen ? JG.info.html() : '');   // 풀이 창은 화면 위에 덮어 그린다
       if (screen.afterRender) screen.afterRender(stage);   // 캔버스 그림 등 HTML 뒤에 그려야 하는 것
       JG.sound.music(screen.music ? screen.music() : 'day');
       const msg = infoOpen ? JG.info.msg() : (screen.msg ? screen.msg() : '');
