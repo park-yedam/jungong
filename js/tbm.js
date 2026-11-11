@@ -13,6 +13,7 @@
     msg: () => msg,
 
     click(act, n) {
+      JG.sound.play('coin');   // 다짐을 고르면 짤랑
       if (act === 'pledge' && IDS[n]) JG.app.show('battle', { siteId, pledge: IDS[n] });
     },
 

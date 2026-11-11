@@ -120,6 +120,7 @@
     msg: () => msg,
 
     click(act) {
+      JG.sound.play('tick');
       if (act === 'next') JG.app.show('tbm', { siteId: nextSiteId() });
       else if (act === 'restart') JG.app.show('tbm', { siteId: g.siteId });
       else if (act === 'sites') JG.app.show('sites');

@@ -37,12 +37,24 @@
       + (g.turn > R.baseTurns ? ' 기준 턴이 지나서 매 턴 지체상금이 붙어요. 서둘러요!' : '');
   }
 
-  // 엔진 결과를 안내 문구와 말풍선에 반영
+  // 엔진 결과를 안내 문구, 말풍선, 효과음에 반영
   function apply(res) {
     ui.msg = res.msg;
     const b = res.events.filter(e => e.t === 'bubble').pop();
     ui.bubble = b ? { zone: b.zone, text: b.text } : null;
+    if (res.ok) JG.sound.play(effectOf(res.events));
   }
+  // 준공 "빠바밤", 층 완성 "빰!", 망치질 "통", 문제 해결, 그 밖(카드 내기·작업지시)은 코인 "짤랑"
+  function effectOf(events) {
+    const t = events.map(e => e.t);
+    if (t.includes('win')) return 'win';
+    if (t.includes('floor')) return 'floor';
+    if (t.includes('solved')) return 'solved';
+    if (t.includes('bricks') || t.includes('out') || events.some(e => e.text === '통통!')) return 'hammer';
+    return 'coin';
+  }
+  // 현장 턴 사건마다 나는 소리
+  const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', hitWorker: 'hammer', solved: 'solved', cured: 'solved', lose: 'lose', newProblem: 'tick', shield: 'tick', burn: 'tick' };
   const selWorker = () => (ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null);
 
   // ---------- 누른 곳 처리 ----------
@@ -54,6 +66,7 @@
     if (c.kind === 'spell') { ui.sel = null; apply(E.playCard(g, i, null)); return; }   // 공법은 누르는 즉시
     ui.sel = { t: 'card', i };
     ui.msg = c.name + ' 선택! 점선으로 된 빈 작업 구역을 누르세요.';
+    JG.sound.play('tick');
   }
 
   function pickMy(i) {
@@ -69,6 +82,7 @@
     const why = E.whyCantHit(g, i);
     if (why) { ui.msg = why; return; }
     ui.sel = { t: 'worker', i };
+    JG.sound.play('tick');
     const name = JG.CARDS[w.id].name, gi = E.guardIndex(g);
     ui.msg = gi >= 0
       ? name + ' 선택! ' + E.ga(JG.PROBLEMS[g.probs[gi].id].name) + ' 방호로 막고 있어서 그것부터 쳐야 해요.'
@@ -103,8 +117,8 @@
     // 이 판에서 처음 나온 문제는 요령 한 줄을 붙인다
     const firstTime = e => e.t === 'newProblem' && before.fi < forecast.length && !forecast.slice(0, before.fi).includes(e.id);
     const tips = res.events.filter(firstTime).map(e => JG.PROBLEMS[e.id].name + ': ' + JG.PROBLEMS[e.id].tip);
-    const frames = [{ state: before, msg: '현장 턴이에요. 현장이 움직여요...' }]
-      .concat(res.events.map(e => ({ state: e.state, msg: e.text + (firstTime(e) ? ' ' + JG.PROBLEMS[e.id].tip : '') })));
+    const frames = [{ state: before, msg: '현장 턴이에요. 현장이 움직여요...', sfx: 'tick' }]
+      .concat(res.events.map(e => ({ state: e.state, msg: e.text + (firstTime(e) ? ' ' + JG.PROBLEMS[e.id].tip : ''), sfx: REPLAY_SFX[e.t] })));
 
     // 다 보여 준 뒤 남길 요약
     const parts = [], lost = before.days - g.days;
@@ -122,6 +136,7 @@
       if (i >= frames.length) { finishReplay(); return; }
       ui.replay.i = i;
       ui.msg = frames[i].msg;
+      if (frames[i].sfx) JG.sound.play(frames[i].sfx);
       JG.app.render();
       ui.replay.timer = setTimeout(() => step(i + 1), i === 0 ? 500 : STEP_MS);
     };
@@ -129,6 +144,7 @@
   }
   function finishReplay() {
     clearTimeout(ui.replay.timer);
+    if (ui.replay.i < ui.replay.frames.length - 1 && g.over === 'lose') JG.sound.play('lose');   // 건너뛰어도 공기 지연 소리는 난다
     ui.msg = ui.replay.final;
     ui.replay = null;
     JG.app.render();
@@ -142,6 +158,7 @@
       else begin(E.newGame({ siteId: arg.siteId, pledge: arg.pledge, seed: Date.now() % 1000000 + 1 }));
     },
     msg: () => ui.msg,
+    music: () => (g.turn > R.baseTurns ? 'night' : 'day'),   // 9턴부터 야간작업 곡
 
     click(act, n) {
       if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
@@ -204,7 +221,7 @@
       const c = w ? JG.CARDS[w.id] : null, isSel = selW && sel.i === i, act = canAnyAct && w && canHit(i), place = selC && !w;
       const atk = w ? E.atkOf(s, w) : 0;
       return {
-        x: ZX[i], click: 'my:' + i,
+        x: ZX[i], click: 'my:' + i, info: w ? 'card:' + w.id : '',
         aria: w ? c.name + ', 공격 ' + atk + ', 체력 ' + w.hp : (place ? '빈 작업 구역. 여기에 놓기' : '빈 작업 구역'),
         occupied: !!w, empty: !w, emptyText: place ? '여기에 놓기' : '빈 작업 구역', emptyColor: place ? '#23602A' : '#8B5A2B',
         bg: w ? '#CF965C' : 'transparent',
@@ -224,7 +241,7 @@
     const probZones = s.probs.map((p, i) => {
       const d = p ? JG.PROBLEMS[p.id] : null, target = selW && p && (gi < 0 || p.guard);
       return {
-        x: ZX[i], click: 'prob:' + i,
+        x: ZX[i], click: 'prob:' + i, info: p ? 'prob:' + p.id : '',
         aria: p ? d.name + ', 공격 ' + p.atk + ', 체력 ' + p.hp + (target ? '. 눌러서 망치질' : '') : '문제 카드 자리',
         occupied: !!p, empty: !p, emptyText: '문제 자리', emptyColor: '#8B5A2B',
         bg: p ? '#D7A26C' : 'transparent',
@@ -242,8 +259,8 @@
       const c = JG.CARDS[id], cost = E.costOf(s, id), afford = !s.over && cost <= s.coins, isSel = selC && sel.i === i;
       const playable = !sel && !busy && !E.whyCantPlay(s, i), crew = c.kind === 'crew';
       return {
-        x: left + i * 156, y: isSel ? 582 : 606, click: 'card:' + i,
-        aria: c.name + ' 카드, 코인 ' + cost + (crew ? ', 공격 ' + c.atk + ', 체력 ' + c.hp : '') + '. ' + c.text,
+        x: left + i * 156, y: isSel ? 582 : 606, click: 'card:' + i, info: 'card:' + id,
+        aria: c.name + ' 카드, 코인 ' + cost + (crew ? ', 공격 ' + c.atk + ', 체력 ' + c.hp : '') + '. ' + c.text + '. 풀이는 i 키',
         name: c.name, cost, band: c.band, text: c.text, frame: crew ? '#8B5A2B' : '#5B8DEF',
         isCrew: crew, isSpell: !crew, atk: c.atk, hp: c.hp,
         shadow: SP[id], artX: 42, artY: id !== 'pump' && id !== 'drone' ? 33 : 45,

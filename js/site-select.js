@@ -53,6 +53,7 @@
     msg: () => msg,
 
     click(act, n) {
+      JG.sound.play('tick');
       if (act === 'title') { JG.app.show('title'); return; }
       if (act !== 'site') return;
       const site = JG.SITES[n];

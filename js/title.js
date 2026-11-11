@@ -28,9 +28,10 @@
     msg: () => msg,
 
     click(act) {
+      JG.sound.play('tick');
       if (act === 'quick') JG.app.show('tbm', { siteId: JG.progress.nextSite().id });
       else if (act === 'continue' && JG.save.data.game) JG.app.show('battle', { resume: true });
-      else if (act === 'sites') JG.app.show('sites');
+      else if (act === 'sites' || act === 'dex' || act === 'settings') JG.app.show(act);
     },
 
     render() {
@@ -57,18 +58,23 @@
       const stars = JG.progress.totalStars();
       const rows = [{ act: 'quick', h: 84, style: L.GREEN + '; color: #FFFFFF; font-size: 32px; line-height: 32px; ' + L.OUT2,
         label: '빠른 시작', sub: '다음 현장: ' + next.no + '. ' + next.name, aria: '빠른 시작. 다음 현장 ' + next.no + '번 ' + next.name }];
-      if (game && gsite) rows.push({ act: 'continue', h: 64, style: L.PAPER,
+      if (game && gsite) rows.push({ act: 'continue', h: 56, style: L.PAPER,
         label: '이어하기', sub: gsite.name + ' · ' + game.turn + '턴', aria: '이어하기. ' + gsite.name + ' ' + game.turn + '턴' });
-      rows.push({ act: 'sites', h: 64, style: L.PAPER, label: '현장 고르기', sub: '모은 별 ' + stars + '개', aria: '현장 고르기. 모은 별 ' + stars + '개' });
+      rows.push({ act: 'sites', h: 56, style: L.PAPER, label: '현장 고르기', sub: '모은 별 ' + stars + '개', aria: '현장 고르기. 모은 별 ' + stars + '개' });
+      rows.push({ h: 48, pair: [['dex', '도감'], ['settings', '설정']] });
 
-      const bx = 564, by = 240, pad = 21, gap = 12;
+      const bx = 564, by = 228, pad = 21, gap = 12;
       const bh = pad * 2 + 6 + rows.reduce((n, r) => n + r.h, 0) + gap * (rows.length - 1);
       [bx + 60, bx + 288].forEach(px => {
         h += '<div aria-hidden="true" style="' + L.at(px, by + bh, 12, GROUND - by - bh) + ' box-sizing: border-box; background: #6B4420; border: 3px solid #3B2A20; border-top: 0"></div>';
       });
       h += '<div style="' + L.at(bx, by, 360, bh) + ' box-sizing: border-box; ' + L.WOOD + '">';
       let y = pad;
-      rows.forEach(r => { h += button(r.act, pad, y, 312, r.h, r.style, r.label, r.sub, r.aria); y += r.h + gap; });
+      rows.forEach(r => {
+        if (r.pair) r.pair.forEach(([act, label], i) => { h += button(act, pad + i * 162, y, 150, r.h, L.PAPER, label, '', label); });
+        else h += button(r.act, pad, y, 312, r.h, r.style, r.label, r.sub, r.aria);
+        y += r.h + gap;
+      });
       h += '</div>';
 
       h += '<p style="' + L.at(0, 772, 1440) + ' margin: 0; text-align: center; font-size: 16px; color: #5C3A1E">도트 글꼴: 갈무리 (SIL 오픈 폰트 라이선스)</p>';
