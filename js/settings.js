@@ -10,7 +10,7 @@
     msg: () => msg,
 
     click(act, n) {
-      if (act === 'title') { JG.sound.play('tick'); JG.app.show('title'); return; }
+      if (act === 'title') { JG.sound.play('tick'); JG.app.show(JG.app.hub); return; }
       if (act === 'diff') {
         JG.save.data.settings.difficulty = DIFFS[n];
         JG.save.write();
@@ -59,7 +59,7 @@
       h += '<button type="button" data-act="test" style="' + L.at(24, 504, 606, 54) + ' ' + L.BTN + '; ' + L.PAPER + '">소리 들어 보기 (층 완성 "빰!")</button>';
       h += '<div style="' + L.at(0, 582, 654) + ' text-align: center; color: #FFE08A; ' + L.OUT1 + '">처음 한 번 화면을 누른 뒤부터 소리가 나요</div>';
       h += '</div>';
-      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">◀ 타이틀로</button>';
+      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">' + JG.app.hubLabel() + '</button>';
       h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }

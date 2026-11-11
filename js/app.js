@@ -10,9 +10,10 @@
   // ---------- 저장 (브라우저 localStorage). 저장이 막혀 있어도 게임은 돌아간다 ----------
   const KEY = 'jungong.save.v1';
   // best: 현장별 최고 별, stars: 모은 별(누적), cards: 받은 확장 카드, slang: 본 현장 말,
-  // dex: 풀이를 본 카드·문제(도감), settings: 소리·난이도 설정, deck: 자재 창고에서 고른 덱(없으면 기본 덱), game: 하던 판
+  // dex: 풀이를 본 카드·문제(도감), settings: 소리·난이도 설정, deck: 자재 창고에서 고른 덱(없으면 기본 덱),
+  // daily: 데일리 현장 날짜별 최고 별, game: 하던 판
   function load() {
-    const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], dex: { cards: [], probs: [] }, settings: { sfx: true, bgm: true, difficulty: 'normal' }, deck: null, game: null };
+    const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], dex: { cards: [], probs: [] }, settings: { sfx: true, bgm: true, difficulty: 'normal' }, deck: null, daily: {}, game: null };
     try {
       const old = JSON.parse(localStorage.getItem(KEY));
       if (old && old.v === 1) Object.assign(d, old, { settings: Object.assign(d.settings, old.settings) });
@@ -52,6 +53,14 @@
       JG.save.write();
       return { stars, first, rewards, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },
+    // 데일리 현장 준공 기록: 그날의 최고 별, 모은 별 (보상 카드는 없음)
+    recordDaily(key, stars) {
+      const d = JG.save.data, before = d.stars, first = !d.daily[key];
+      d.daily[key] = Math.max(d.daily[key] || 0, stars);
+      d.stars += stars;
+      JG.save.write();
+      return { stars, first, rewards: [], daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
+    },
     // 자재 창고에서 쓸 수 있는 카드: 기본 카드 + 받은 확장 카드
     owned: () => Object.keys(JG.CARDS).filter(id => !JG.CARDS[id].expansion || JG.save.data.cards.includes(id)),
     seeSlang(id) {
@@ -86,8 +95,11 @@
   // ---------- 화면 전환과 그리기 ----------
   let screen = null;
   JG.app = {
+    hub: 'title',   // 돌아갈 곳: 타이틀 또는 우리 회사 단지 (도감·자재 창고·설정·게시판의 ◀ 버튼)
+    hubLabel: () => (JG.app.hub === 'complex' ? '◀ 단지로' : '◀ 타이틀로'),
     show(name, arg) {
       if (screen && screen.leave) screen.leave();   // 떠나는 화면 정리 (턴 시간 등)
+      if (name === 'title' || name === 'complex') JG.app.hub = name;
       screen = JG.screens[name];
       if (screen.enter) screen.enter(arg);
       JG.app.render();

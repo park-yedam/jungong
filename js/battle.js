@@ -20,10 +20,14 @@
   let ticker = null;
 
   // ---------- 판 시작, 저장 ----------
-  function newGameFor(siteId, pledge) {
+  // arg: { siteId } 또는 { daily: true }. 데일리 현장은 날짜 시드로 섞어 같은 덱이면 누구나 같은 순서로 뽑는다
+  function newGameFor(arg) {
     const d = JG.save.data, deck = d.deck && d.deck.length === R.deckSize ? d.deck : null;   // 자재 창고에서 고른 덱
-    return E.newGame({ siteId, pledge, seed: Date.now() % 1000000 + 1, deck, difficulty: d.settings.difficulty });
+    const site = arg.daily ? JG.daily.today() : undefined;
+    return E.newGame({ siteId: arg.siteId, site, pledge: arg.pledge, seed: site ? site.seed : Date.now() % 1000000 + 1, deck, difficulty: d.settings.difficulty });
   }
+  const isDaily = () => !!(g.site && g.site.daily);
+  const tbmTarget = () => (isDaily() ? { daily: true } : { siteId: g.siteId });
   function begin(state, prefix) {
     g = state;
     ui = { sel: null, bubble: null, replay: null, recorded: !!state.over };
@@ -39,7 +43,7 @@
   function after() {
     if (g.over && !ui.recorded) {
       ui.recorded = true;
-      if (g.over === 'win') ui.result = JG.progress.record(g.siteId, E.stars(g));
+      if (g.over === 'win') ui.result = isDaily() ? JG.progress.recordDaily(g.site.dateKey, E.stars(g)) : JG.progress.record(g.siteId, E.stars(g));
     }
     g.rec.cards.forEach(id => { if (JG.CARDS[id].slang) JG.progress.seeSlang(JG.CARDS[id].slang); });
     g.probs.forEach(p => { if (p && JG.PROBLEMS[p.id].slang) JG.progress.seeSlang(JG.PROBLEMS[p.id].slang); });
@@ -203,7 +207,7 @@
     // arg: { siteId, pledge } 새 판 (아침 TBM에서 고른 다짐), { resume: true } 하던 판 이어하기
     enter(arg) {
       if (arg.resume && JG.save.data.game) begin(JG.save.data.game, '이어서 해요. ');
-      else begin(newGameFor(arg.siteId, arg.pledge));
+      else begin(newGameFor(arg));
       clearInterval(ticker);
       ticker = setInterval(tick, 1000);
     },
@@ -216,8 +220,8 @@
 
     click(act, n) {
       if (ui.replay) { finishReplay(); return; }   // 현장 턴 연출 중에는 누르면 바로 끝
-      if (act === 'restart') { JG.app.show('tbm', { siteId: g.siteId }); return; }   // 새 판은 늘 아침 TBM부터
-      if (act === 'exit') { JG.app.show('title'); return; }
+      if (act === 'restart') { JG.app.show('tbm', tbmTarget()); return; }   // 새 판은 늘 아침 TBM부터
+      if (act === 'exit') { JG.app.show(JG.app.hub); return; }
       if (act === 'sites') { JG.app.show('sites'); return; }
       if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
       if (g.over) return;

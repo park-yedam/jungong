@@ -40,7 +40,7 @@
       JG.sound.play('tick');
       if (act === 'title') {
         if (deck.length !== R.deckSize) { msg = '덱을 ' + R.deckSize + '장으로 맞춰 주세요. 지금 ' + deck.length + '장이에요. "기본 덱으로"를 눌러도 돼요.'; return; }
-        JG.app.show('title'); return;
+        JG.app.show(JG.app.hub); return;
       }
       if (act === 'reset') { deck = JG.STARTER_DECK.slice(); saveDeck(); msg = '기본 덱 12장으로 되돌렸어요.'; return; }
       const id = raw, c = JG.CARDS[id];
@@ -70,7 +70,7 @@
       h += '<div style="' + L.at(15, 66, 1236, 555) + ' box-sizing: border-box; background: #6B4420; border: 3px solid #3B2A20">';
       ids.forEach((id, i) => { h += tile(id, (i % 6) * 207, 9 + Math.floor(i / 6) * 182); });
       h += '</div></div>';
-      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">◀ 타이틀로</button>';
+      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">' + JG.app.hubLabel() + '</button>';
       h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }

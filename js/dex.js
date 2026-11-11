@@ -51,7 +51,7 @@
 
     click(act, n) {
       JG.sound.play('tick');
-      if (act === 'title') { JG.app.show('title'); return; }
+      if (act === 'title') { JG.app.show(JG.app.hub); return; }
       if (act === 'tab') { tab = TABS[n][0]; const [a, b] = counts()[tab]; msg = TABS[n][1] + ' 도감: ' + b + '개 중 ' + a + '개를 모았어요.'; }
     },
 
@@ -76,7 +76,7 @@
         ids.forEach((id, i) => { h += tile(tab, id, (i % 6) * (TW + 12), Math.floor(i / 6) * (TH + 12)); });
       }
       h += '</div></div>';
-      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">◀ 타이틀로</button>';
+      h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">' + JG.app.hubLabel() + '</button>';
       h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }

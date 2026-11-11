@@ -3,7 +3,7 @@
 //       node tools\simulate.js 500    (현장별 500판씩)
 // 규칙 엔진이 오류 없이 끝까지 도는지, 난이도·덱별 준공률과 판 길이가 어떤지 본다.
 const path = require('path');
-['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js']
+['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'js/daily.js']
   .forEach(f => require(path.join(__dirname, '..', f)));
 
 const JG = globalThis.JG, E = JG.engine, R = JG.RULES;
@@ -129,6 +129,28 @@ function run(bot, title, cfg) {
 console.log('준공! 자동 대전 시뮬레이션 (설정마다 현장별 ' + GAMES + '판, 아침 TBM 다짐 3종을 번갈아 고름)');
 console.log('똑똑한 봇: 1~3번 현장은 기본 덱, 4~5번 현장은 확장 덱(' + EXP_DECK.map(id => JG.CARDS[id].name).join(', ') + ')');
 ['easy', 'normal', 'hard'].forEach(d => run('greedy', '똑똑한 봇 · 난이도 ' + JG.DIFFICULTY[d].name, { difficulty: d }));
+
+// 데일리 현장: 2026년 1월 1일부터 하루씩, 확장 덱, 보통
+(() => {
+  console.log('\n[데일리 현장 · 똑똑한 봇 · 보통 · 확장 덱 · ' + GAMES + '일]');
+  const byCond = {};
+  for (let n = 0; n < GAMES; n++) {
+    total++;
+    const site = JG.daily.siteFor(new Date(2026, 0, 1 + n)), key = site.condition || 'clear';
+    const st = byCond[key] = byCond[key] || { n: 0, wins: 0, turns: 0 };
+    try {
+      const s = E.newGame({ site, pledge: PLEDGES[n % PLEDGES.length], seed: site.seed, deck: EXP_DECK, difficulty: 'normal' });
+      check(s);
+      while (!s.over) greedyTurn(s);
+      st.n++; st.turns += s.over === 'win' ? s.turn : s.turn - 1;
+      if (s.over === 'win') st.wins++;
+    } catch (e) { errors.push('데일리 ' + site.dateKey + ': ' + e.message); }
+  }
+  Object.entries(byCond).forEach(([k, st]) => {
+    const avg = st.turns / st.n, sec = Math.round(avg * SECONDS_PER_TURN);
+    console.log((k === 'clear' ? '맑음' : JG.CONDITIONS[k].name) + ' | ' + st.n + '일 | 준공 ' + Math.round(st.wins / st.n * 100) + '% | 평균 ' + avg.toFixed(1) + '턴 (예상 ' + Math.floor(sec / 60) + '분 ' + (sec % 60) + '초)');
+  });
+})();
 run('random', '무작위 봇 · 보통 · 판마다 다른 덱 (오류 찾기용)', { difficulty: 'normal' });
 console.log('\n총 ' + total + '판 · 오류 ' + errors.length + '건');
 errors.slice(0, 10).forEach(e => console.log('  - ' + e));

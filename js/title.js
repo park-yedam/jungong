@@ -31,11 +31,11 @@
       JG.sound.play('tick');
       if (act === 'quick') JG.app.show('tbm', { siteId: JG.progress.nextSite().id });
       else if (act === 'continue' && JG.save.data.game) JG.app.show('battle', { resume: true });
-      else if (['sites', 'dex', 'deck', 'settings'].includes(act)) JG.app.show(act);
+      else if (['complex', 'sites', 'dex', 'deck', 'settings'].includes(act)) JG.app.show(act);
     },
 
     render() {
-      const next = JG.progress.nextSite(), game = JG.save.data.game, gsite = game && siteOf(game.siteId);
+      const next = JG.progress.nextSite(), game = JG.save.data.game, gsite = game && (game.site || siteOf(game.siteId));   // 데일리 판은 현장을 품고 있다
       let h = '<div style="' + L.ROOT + '; background: #A9CFE0">';
 
       // 하늘과 땅
@@ -60,7 +60,8 @@
         label: '빠른 시작', sub: '다음 현장: ' + next.no + '. ' + next.name, aria: '빠른 시작. 다음 현장 ' + next.no + '번 ' + next.name }];
       if (game && gsite) rows.push({ act: 'continue', h: 56, style: L.PAPER,
         label: '이어하기', sub: gsite.name + ' · ' + game.turn + '턴', aria: '이어하기. ' + gsite.name + ' ' + game.turn + '턴' });
-      rows.push({ act: 'sites', h: 56, style: L.PAPER, label: '현장 고르기', sub: '모은 별 ' + stars + '개', aria: '현장 고르기. 모은 별 ' + stars + '개' });
+      const rank = JG.RANKS[JG.progress.rankOf(stars)].name;
+      rows.push({ act: 'complex', h: 56, style: L.PAPER, label: '우리 회사 단지', sub: rank + ' · 모은 별 ' + stars + '개', aria: '우리 회사 단지. 칭호 ' + rank + ', 모은 별 ' + stars + '개' });
       rows.push({ h: 48, pair: [['dex', '도감'], ['deck', '자재 창고'], ['settings', '설정']] });
 
       const bx = 564, by = 228, pad = 21, gap = 12;

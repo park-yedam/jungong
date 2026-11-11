@@ -2,7 +2,7 @@
 // 실행: node tools\rulecheck.js
 const path = require('path');
 const root = path.join(__dirname, '..');
-['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js'].forEach(f => require(path.join(root, f)));
+['data/rules.js', 'data/cards.js', 'data/problems.js', 'data/sites.js', 'data/tbm.js', 'data/slang.js', 'js/engine.js', 'js/daily.js'].forEach(f => require(path.join(root, f)));
 const JG = globalThis.JG, E = JG.engine;
 let pass = 0, failN = 0;
 const t = (name, cond) => { if (cond) pass++; else { failN++; console.log('실패: ' + name); } };
@@ -245,8 +245,29 @@ s = fresh('deep', { bricks: 22 }); s.my[0] = W('pump');
 E.hit(s, 0, 'building');
 t('5번 현장 준공 문구', s.over === 'win' && E.floorName(s, 6) === '지상 4층');
 
+// ---- 7단계: 데일리 현장 ----
+const D = JG.daily;
+const d1 = D.siteFor(new Date(2026, 10, 11)), d2 = D.siteFor(new Date(2026, 10, 11, 23, 59));
+t('같은 날짜면 같은 데일리 현장 (시각이 달라도)', JSON.stringify(d1) === JSON.stringify(d2));
+t('날짜 키', d1.dateKey === '2026-11-11' && d1.id === 'daily-2026-11-11');
+t('가을(11월)은 맑음', d1.condition === null);
+t('여름(7월)은 집중호우', D.siteFor(new Date(2026, 6, 15)).condition === 'rain');
+t('겨울(1월·12월)은 한파', D.siteFor(new Date(2026, 0, 10)).condition === 'cold' && D.siteFor(new Date(2026, 11, 3)).condition === 'cold');
+const spring = Array.from({ length: 60 }, (_, k) => D.siteFor(new Date(2026, 2, 1 + k)).condition);
+t('봄은 연약지반이거나 맑음 (둘 다 나옴)', spring.every(c => c === 'soft' || c === null) && spring.includes('soft') && spring.includes(null));
+const month = Array.from({ length: 30 }, (_, k) => D.siteFor(new Date(2026, 8, 1 + k)));
+t('문제 순서 8칸, 첫 문제는 균열이, 모두 있는 문제', month.every(x => x.forecast.length === 8 && x.forecast[0] === 'crack' && x.forecast.every(id => JG.PROBLEMS[id])));
+t('날마다 다른 현장 (30일 중 25일 이상 서로 다름)', new Set(month.map(x => JSON.stringify([x.name, x.bricks, x.forecast]))).size >= 25);
+s = E.newGame({ site: d1, seed: d1.seed });
+t('데일리 현장으로 판 시작', E.siteOf(s) === d1 && s.totalBricks === d1.bricks && s.siteId === d1.id);
+const s2 = JSON.parse(JSON.stringify(s));
+E.endTurn(s2);
+t('저장했다 불러온 데일리 판도 진행됨 (예고대로 균열이)', s2.turn === 2 && s2.probs[0] && s2.probs[0].id === 'crack');
+t('같은 날 같은 덱이면 손패도 같음', JSON.stringify(E.newGame({ site: d1, seed: d1.seed }).hand) === JSON.stringify(s.hand));
+
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');
+t('조사: 복합 상가예요 / 도서관이에요', E.ieyo('복합 상가') === '복합 상가예요' && E.ieyo('도서관') === '도서관이에요');
 t('조사: 아파트를 / 타워크레인을', E.eul('장마철 아파트') === '장마철 아파트를' && E.eul('타워크레인') === '타워크레인을');
 t('조사: 주임으로 / 대리로 / 현장소장으로 / 서울로', E.ro('주임') === '주임으로' && E.ro('대리') === '대리로' && E.ro('현장소장') === '현장소장으로' && E.ro('서울') === '서울로');
 

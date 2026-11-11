@@ -38,6 +38,13 @@ html, body {
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes rain { from { transform: translateY(-36px); } to { transform: translateY(0); } }
 @keyframes snow { from { transform: translateY(-48px); } to { transform: translateY(0); } }
+/* 우리 회사 단지: 작업팀이 길을 따라 오갔다 돌아온다 (--d만큼 갔다가 뒤돌아 옴) */
+@keyframes walk {
+  0% { transform: translateX(0) scaleX(1); }
+  49.9% { transform: translateX(var(--d)) scaleX(1); }
+  50% { transform: translateX(var(--d)) scaleX(-1); }
+  100% { transform: translateX(0) scaleX(-1); }
+}
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 

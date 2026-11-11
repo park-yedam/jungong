@@ -9,7 +9,8 @@
   // ---------- 작은 도구 ----------
   const card = id => JG.CARDS[id];
   const problem = id => JG.PROBLEMS[id];
-  const siteOf = s => JG.SITES.find(x => x.id === s.siteId);
+  // 현장: 데일리 현장처럼 만들어진 현장은 상태 안(s.site)에 들고 다닌다
+  const siteOf = s => s.site || JG.SITES.find(x => x.id === s.siteId);
   // 현장 조건. 보온양생 같은 공법으로 무효가 되면(condOff) 없는 것으로 친다
   const conditionOf = s => { const id = siteOf(s).condition; return id && !s.condOff ? JG.CONDITIONS[id] : null; };
   const diffOf = s => JG.DIFFICULTY[s.diff] || JG.DIFFICULTY.normal;
@@ -19,6 +20,7 @@
   const eun = w => w + (hasBatchim(w) ? '은' : '는');
   const ga = w => w + (hasBatchim(w) ? '이' : '가');
   const eul = w => w + (hasBatchim(w) ? '을' : '를');
+  const ieyo = w => w + (hasBatchim(w) ? '이에요' : '예요');
   // '로/으로': 받침이 없거나 ㄹ 받침이면 '로'
   const ro = w => w + (hasBatchim(w) && (w.charCodeAt(w.length - 1) - 0xAC00) % 28 !== 8 ? '으로' : '로');
 
@@ -71,9 +73,9 @@
   }
 
   // ---------- 판 시작 ----------
-  // opts: { siteId, pledge(다짐 id), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱), difficulty('easy' | 'normal' | 'hard') }
+  // opts: { siteId 또는 site(만들어진 현장 데이터), pledge(다짐 id), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱), difficulty('easy' | 'normal' | 'hard') }
   function newGame(opts) {
-    const r = R(), site = JG.SITES.find(x => x.id === opts.siteId), pledge = JG.PLEDGES[opts.pledge] || {};
+    const r = R(), site = opts.site || JG.SITES.find(x => x.id === opts.siteId), pledge = JG.PLEDGES[opts.pledge] || {};
     const deck = shuffle(opts.deck || JG.STARTER_DECK, opts.seed || 1);
     const handSize = r.startHand + (pledge.extraHand || 0);
     // 시작 손패 보장: 현장에 starterCard가 있으면 그 카드(첫 판 안내용),
@@ -84,7 +86,7 @@
       if (k >= 0) deck.unshift(deck.splice(k, 1)[0]);
     }
     return {
-      siteId: site.id, pledge: opts.pledge || null, diff: opts.difficulty || 'normal',
+      siteId: site.id, site: opts.site || undefined, pledge: opts.pledge || null, diff: opts.difficulty || 'normal',
       turn: 1, maxCoins: r.startCoins, coins: r.startCoins,
       bricks: 0, totalBricks: site.bricks, days: r.days, fi: 0,
       hand: deck.splice(0, handSize), deck,
@@ -355,6 +357,6 @@
     newGame, playCard, hit, order, endTurn,
     whyCantPlay, whyCantHit, whyCantOrder,
     atkOf, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
-    random, shuffle, eun, ga, eul, ro
+    random, shuffle, eun, ga, eul, ro, ieyo
   };
 })();
