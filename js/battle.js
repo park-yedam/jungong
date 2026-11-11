@@ -83,7 +83,10 @@
     ui.msg = res.msg;
     const b = res.events.filter(e => e.t === 'bubble').pop();
     ui.bubble = b ? { zone: b.zone, text: b.text } : null;
-    if (res.ok && !quiet) JG.sound.play(effectOf(res.events));
+    if (res.ok && !quiet) {
+      JG.sound.play(effectOf(res.events));
+      post.push(() => res.events.forEach(numbers));
+    }
   }
   // 준공 "빠바밤", 층 완성 "빰!", 망치질 "통", 문제 해결, 그 밖(카드 내기·작업지시)은 코인 "짤랑"
   function effectOf(events) {
@@ -95,7 +98,7 @@
     return 'coin';
   }
   // 현장 턴 사건마다 나는 소리
-  const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', coinDrain: 'thud', hitWorker: 'hammer', solved: 'solved', cured: 'solved', cancelled: 'solved', lose: 'lose', newProblem: 'tick', shield: 'tick', burn: 'tick', swap: 'tick' };
+  const REPLAY_SFX = { calendar: 'thud', penalty: 'thud', coinDrain: 'coinLoss', hitWorker: 'hurt', solved: 'solved', cured: 'solved', cancelled: 'solved', lose: 'lose', newProblem: 'tick', shield: 'shield', burn: 'tick', swap: 'tick' };
   const selWorker = () => (ui.sel && ui.sel.t === 'worker' ? ui.sel.i : null);
   const selCard = () => (ui.sel && ui.sel.t === 'card' ? JG.CARDS[g.hand[ui.sel.i]] : null);
 
@@ -105,6 +108,36 @@
   const fx = JG.fx;
   const at = act => document.querySelector('#screen [data-act="' + act + '"]');
   const calendarEl = () => document.querySelector('#screen [data-fx="calendar"]');
+  const coinsEl = () => document.querySelector('#screen [data-fx="coins"]');
+
+  // 떠오르는 숫자: 깎이는 것은 빨강, 늘어나는 것은 초록, 벽돌은 노랑. 자리는 무대 좌표 (작업 구역 가운데, 달력, 공사비)
+  const RED = '#E35D5B', GREEN = '#7BD389', GOLD = '#F7C948';
+  const MY_Y = 530, PROB_Y = 386, CAL = [138, 626], COIN = [1310, 626];   // 카드 그림 위, 달력·공사비 판 바로 위 빈 곳
+  const pop = (x, y, text, color, size) => fx.float(x, y, text, color, size || 48);
+  // 사건 하나의 숫자와 흔들림 (부딪히는 순간, 또는 그 사건을 그린 직후에 부른다)
+  function numbers(e) {
+    if (e.t === 'hitWorker') {
+      pop(ZX[e.zone] + 90, MY_Y, e.n ? '-' + e.n : '막음', e.n ? RED : '#FFFFFF');
+      if (e.back) pop(ZX[e.from] + 90, PROB_Y, '-' + e.back, RED, 32);
+      if (e.n >= 3) fx.shakeScreen();
+    } else if (e.t === 'hit') {
+      pop(ZX[e.zone] + 90, PROB_Y, '-' + e.n);
+      if (e.back) pop(ZX[e.from] + 90, MY_Y, '-' + e.back, RED, 32);
+    } else if (e.t === 'calendar' || e.t === 'penalty') {
+      pop(CAL[0], CAL[1], '-' + e.n + '일');
+      fx.shake(calendarEl());
+      if (e.n >= 2) fx.shakeScreen();
+    } else if (e.t === 'shield') pop(CAL[0], CAL[1], '막음!', '#9CC7DC');
+    else if (e.t === 'coinDrain') { pop(COIN[0], COIN[1], '-' + e.n); fx.shake(coinsEl()); }
+    else if (e.t === 'bricks') { const b = fx.rectOf(at('building')); pop(b.x + b.w / 2, Math.max(60, b.y - 30), '벽돌 +' + e.n, GOLD, 36); }   // 건물 위 (층 완성 알림판과 겹치지 않게)
+    else if (e.t === 'heal') pop(ZX[e.zone] + 90, MY_Y, '+' + e.n, GREEN);
+    else if (e.t === 'cured') pop(ZX[e.zone] + 90, MY_Y, '+' + e.atk + '/+' + e.hp, GREEN, 32);
+    else if (e.t === 'floor' || e.t === 'win') {
+      const b = fx.rectOf(at('building'));
+      fx.burst(b.x + b.w / 2, b.y + 24, e.t === 'win' ? 60 : 30);
+      if (e.t === 'floor') fx.banner(E.floorName(g, e.n) + ' 완성!', GOLD);
+    } else if (e.t === 'out') fx.shakeScreen(6);
+  }
   let animId = 0;
   const post = [];   // 다시 그린 직후에 할 연출 (카드 내려앉기 등)
   function hold(run) {
@@ -128,6 +161,7 @@
         if (!live()) return;
         JG.sound.play(effectOf(res.events));
         if (target !== 'building') { fx.flash(to); fx.shake(to); }
+        res.events.forEach(numbers);
       });
       if (!live()) return;
       await Promise.all([
@@ -235,23 +269,25 @@
     for (let i = 0; i < rp.frames.length; i++) {
       const f = rp.frames[i], e = f.e;
       const show = () => { if (!live()) return; rp.i = i; ui.msg = f.msg; JG.app.render(); };
-      if (!e) { show(); JG.sound.play(f.sfx); await fx.wait(500); }
+      if (!e) { show(); JG.sound.play(f.sfx); fx.banner('현장 턴', '#FFB0A8'); await fx.wait(500); }
       else if (e.from != null) {   // 문제 카드의 공격 (작업팀, 달력, 안전 구호가 막음)
         const to = e.t === 'hitWorker' ? at('my:' + e.zone) : calendarEl();
         await fx.lunge(at('prob:' + e.from), fx.rectOf(to), () => {
           if (!live()) return;
           JG.sound.play(f.sfx); fx.flash(to); fx.shake(to);
+          numbers(e);
         });
         show(); await fx.wait(300);
       } else if (e.t === 'out' || e.t === 'solved') {
         if (f.sfx) JG.sound.play(f.sfx);
+        numbers(e);
         await fx.vanish(at((e.t === 'out' ? 'my:' : 'prob:') + e.zone));
         show(); await fx.wait(250);
       } else {
         show();
         if (f.sfx) JG.sound.play(f.sfx);
         if (e.t === 'newProblem') fx.land(at('prob:' + e.zone));
-        if (e.t === 'calendar' || e.t === 'penalty') fx.shake(calendarEl());
+        numbers(e);
         await fx.wait(STEP_MS);
       }
       if (!live()) return;
@@ -265,6 +301,7 @@
     fx.skipAll();
     startTurnTimer();   // 새 내 턴의 시간
     JG.app.render();
+    if (!g.over) fx.banner(g.turn + '턴 · 내 턴!');
   }
 
   // ---------- 화면 등록 ----------
@@ -275,6 +312,7 @@
       else begin(newGameFor(arg));
       clearInterval(ticker);
       ticker = setInterval(tick, 1000);
+      if (!g.over) fx.banner(g.turn + '턴 · 내 턴!');
     },
     leave() {
       clearInterval(ticker); ticker = null;
@@ -294,6 +332,7 @@
       if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
       if (g.over) return;
       ui.bubble = null;
+      const coins0 = g.coins;
       let held;
       if (act === 'card') pickCard(n);
       else if (act === 'my') pickMy(n);
@@ -301,6 +340,7 @@
       else if (act === 'building') held = hitBuilding();
       else if (act === 'order') apply(E.order(g, selWorker()));
       else if (act === 'end') { endTurn(); return; }
+      if (g.coins < coins0) pop(COIN[0], COIN[1], '-' + (coins0 - g.coins), RED, 32);
       after();
       return held;
     },

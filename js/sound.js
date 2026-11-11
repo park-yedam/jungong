@@ -43,6 +43,9 @@
     lose: t => { ['G4', 'E4', 'C4'].forEach((n, i) => tone(hz(n), t + i * 0.2, 0.28, 'triangle', 0.35, sfxOut)); },
     solved: t => { tone(hz('E5'), t, 0.08, 'square', 0.25, sfxOut); tone(hz('A5'), t + 0.08, 0.18, 'square', 0.25, sfxOut); },
     thud: t => { tone(110, t, 0.16, 'triangle', 0.5, sfxOut, 55); noise(t, 0.08, 0.3); },   // 달력이 깎일 때
+    hurt: t => { tone(320, t, 0.1, 'square', 0.45, sfxOut, 90); noise(t, 0.1, 0.55); tone(80, t + 0.03, 0.14, 'triangle', 0.5, sfxOut, 50); },   // 작업팀이 맞을 때 "퍽"
+    coinLoss: t => { tone(1319, t, 0.07, 'square', 0.3, sfxOut); tone(988, t + 0.08, 0.07, 'square', 0.3, sfxOut); tone(659, t + 0.16, 0.22, 'square', 0.3, sfxOut, 440); },   // 공사비가 깎일 때 (짤랑을 거꾸로)
+    shield: t => { tone(1568, t, 0.3, 'triangle', 0.35, sfxOut); tone(2093, t, 0.16, 'square', 0.12, sfxOut); noise(t, 0.03, 0.2); },   // 안전 구호가 막을 때 "챙"
     tick: t => tone(1200, t, 0.04, 'square', 0.15, sfxOut)                                    // 고르기, 메뉴
   };
 

@@ -165,7 +165,7 @@
   function castSpell(s, id, z) {
     const c = card(id), parts = [], events = [{ t: 'spell', id }];
     if (c.draw) parts.push('카드 ' + draw(s, c.draw) + '장을 뽑았어요');
-    if (c.heal) { s.my[z].hp += c.heal; parts.push(card(s.my[z].id).name + ' 체력 +' + c.heal); }
+    if (c.heal) { s.my[z].hp += c.heal; parts.push(card(s.my[z].id).name + ' 체력 +' + c.heal); events.push({ t: 'heal', zone: z, n: c.heal }); }
     if (c.cancels && siteOf(s).condition === c.cancels && !s.condOff) {
       s.condOff = true;
       s.my.forEach(w => { if (w && w.curing > 1) w.curing = 1; });   // 늦어지던 양생도 원래대로
@@ -180,6 +180,7 @@
     if (c.teamAtk) {
       s.my.forEach(w => { if (w) w.buff += c.teamAtk; });
       s.days -= c.selfDays;
+      events.push({ t: 'calendar', n: c.selfDays });
       parts.push('이번 턴 모두 공격 +' + c.teamAtk + ', 공기 -' + c.selfDays + '일');
     }
     if (c.remove) { parts.push(problem(s.probs[z].id).name + ' 제거'); s.probs[z] = null; events.push({ t: 'solved', zone: z }); }
@@ -234,7 +235,7 @@
     mark(s);
     const pname = problem(p.id).name, back = Math.max(0, p.atk - protection(s, i));
     p.hp -= a; w.hp -= back; w.ready = false;
-    const events = [];
+    const events = [{ t: 'hit', from: i, zone: target, n: a, back }];   // 화면 연출용: 준 피해, 되치기로 받은 피해
     let msg = c.name + ' → ' + pname + ': ' + a + ' 피해.';
     if (p.hp <= 0) { s.probs[target] = null; msg += ' ' + pname + ' 해결!'; events.push({ t: 'solved', zone: target }); }
     if (w.hp <= 0) {
@@ -296,8 +297,10 @@
       if (ti < 0 && d.workersOnly) ti = s.my.findIndex(Boolean);
       if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name, pi); return; }
       const w = s.my[ti], wname = card(w.id).name, dmg = dmgTo(ti);
-      w.hp -= dmg; p.hp -= atkOf(s, w);   // 작업팀은 맞으면서 자기 공격력만큼 되친다
-      say('hitWorker', d.name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti });
+      w.hp -= dmg;
+      const back = atkOf(s, w);
+      p.hp -= back;   // 작업팀은 맞으면서 자기 공격력만큼 되친다
+      say('hitWorker', d.name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti, n: dmg, back });
       if (w.hp <= 0) { s.my[ti] = null; say('out', wname + ': "오늘 작업 끝!" 하고 퇴장.', { zone: ti }); }
       if (p.hp <= 0) { s.probs[pi] = null; say('solved', d.name + ' 해결!', { zone: pi }); }
     });
@@ -329,16 +332,16 @@
     s.maxCoins = Math.min(r.maxCoins, s.maxCoins + 1);
     const coinDrain = s.probs.reduce((n, p) => n + ((p && problem(p.id).coinDrain) || 0), 0);
     s.coins = Math.max(0, s.maxCoins - coinDrain);
-    if (coinDrain) say('coinDrain', '자재 반입 지연: 이번 턴 공사비 -' + coinDrain + '.');
+    if (coinDrain) say('coinDrain', '자재 반입 지연: 이번 턴 공사비 -' + coinDrain + '.', { n: coinDrain });
     s.orderUsed = false;
-    s.my.forEach(w => {
+    s.my.forEach((w, k) => {
       if (!w) return;
       if (w.curing) {
         w.curing -= 1;
         if (!w.curing) {
           const cure = card(w.id).cure;
           w.atk += cure.atk; w.hp += cure.hp;
-          say('cured', card(w.id).name + ' 양생 완료 +' + cure.atk + '/+' + cure.hp + '.');
+          say('cured', card(w.id).name + ' 양생 완료 +' + cure.atk + '/+' + cure.hp + '.', { zone: k, atk: cure.atk, hp: cure.hp });
         }
       }
       w.ready = !w.curing; w.fresh = false;
@@ -347,7 +350,7 @@
       if (s.hand.length < r.handMax) s.hand.push(s.deck.shift());
       else { s.deck.shift(); say('burn', '손패가 꽉 차서 카드 1장이 버려졌어요.'); }
     }
-    if (s.turn > r.baseTurns && diffOf(s).delayPenalty) { s.days -= r.delayPenalty; say('penalty', (r.baseTurns + 1) + '턴부터 지체상금: 공기 -' + r.delayPenalty + '일.'); }
+    if (s.turn > r.baseTurns && diffOf(s).delayPenalty) { s.days -= r.delayPenalty; say('penalty', (r.baseTurns + 1) + '턴부터 지체상금: 공기 -' + r.delayPenalty + '일.', { n: r.delayPenalty }); }
     if (s.days <= 0) { s.days = 0; s.over = 'lose'; say('lose', '달력이 D-0이 됐어요. 공기 지연...'); }
 
     const msg = '현장 턴 → ' + (events.length ? events.map(e => e.text).join(' ') : '조용히 지나갔어요.') + (s.over ? '' : ' 이제 ' + s.turn + '턴!');

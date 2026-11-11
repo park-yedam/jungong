@@ -117,7 +117,7 @@
     banner(text, color) {
       const d = make('<div style="padding: 12px 36px; background: #8B5A2B; border: 3px solid #3B2A20; box-shadow: inset 0 3px 0 #A8743F, inset 0 -6px 0 #6B4420">'
         + '<span style="font-size: 48px; line-height: 56px; color: ' + (color || '#FFFFFF') + '; text-shadow: ' + outline(3) + '">' + JG.esc(text) + '</span></div>',
-        'left: 720px; top: 300px; transform: translate(-50%, -50%); white-space: nowrap');
+        'left: 720px; top: 210px; transform: translate(-50%, -50%); white-space: nowrap');   // 건물 높이: 문제 카드를 가리지 않게
       const frames = reduced()
         ? [{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }]
         : [{ transform: 'translate(-50%, -50%) scale(0.3)', opacity: 0 },

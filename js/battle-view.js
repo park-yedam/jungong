@@ -1005,7 +1005,7 @@ ${z.hasBubble ? `
 <div style="position: absolute; left: 0px; top: 42px; width: 198px; text-align: center; font-size: 48px; line-height: 48px; color: ${esc(v.daysColor)}">${esc(v.daysText)}</div>
 <div style="position: absolute; left: 0px; top: 102px; width: 198px; text-align: center; font-size: 16px; line-height: 16px; color: #5C3A1E; white-space: nowrap">남은 날짜</div>
 </div>
-<div style="position: absolute; left: 1116px; top: 652px; width: 288px; height: 60px; box-sizing: border-box; background: #8B5A2B; border: 3px solid #3B2A20; box-shadow: inset 0 3px 0 #A8743F, inset 0 -3px 0 #6B4420">
+<div data-fx="coins" style="position: absolute; left: 1116px; top: 652px; width: 288px; height: 60px; box-sizing: border-box; background: #8B5A2B; border: 3px solid #3B2A20; box-shadow: inset 0 3px 0 #A8743F, inset 0 -3px 0 #6B4420">
 <div style="position: absolute; left: 9px; top: 6px; font-size: 16px; line-height: 16px; color: #FFFFFF; white-space: nowrap; text-shadow: 1px 0 #3B2A20, -1px 0 #3B2A20, 0 1px #3B2A20, 0 -1px #3B2A20, 1px 1px #3B2A20, -1px 1px #3B2A20, 1px -1px #3B2A20, -1px -1px #3B2A20">공사비</div>
 ${v.coins.map(k => `
 <div aria-hidden="true" style="position: absolute; left: ${esc(k.l)}px; top: 27px; width: 3px; height: 3px; box-shadow: ${esc(k.shadow)}">
