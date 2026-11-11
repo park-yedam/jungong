@@ -44,7 +44,7 @@ function act(s, fn) {
 // 똑똑한 봇이 카드를 어디에 쓸지: 작업팀은 빈 칸, 아군 공법은 체력 낮은 작업팀, 문제 공법은 방호·센 문제
 function targetFor(s, id) {
   const c = JG.CARDS[id];
-  if (c.kind === 'crew') return s.my.findIndex(w => !w);
+  if (c.kind === 'crew') { const e = s.my.findIndex(w => !w); return e >= 0 ? e : s.my.findIndex(w => w && w.id === id && !w.gold); }   // 빈 칸, 없으면 숙련 승급
   if (c.target === 'ally') { let k = -1; s.my.forEach((w, i) => { if (w && (k < 0 || w.hp < s.my[k].hp)) k = i; }); return k; }
   if (c.target === 'problem') { const g = E.guardIndex(s); if (g >= 0) return g; let k = -1; s.probs.forEach((p, i) => { if (p && (k < 0 || p.atk > s.probs[k].atk)) k = i; }); return k; }
   return null;

@@ -10,6 +10,6 @@ JG.UNITS = {
     warmcure: '재료', bim: '시공', rushwork: '시공', redesign: '시공'
   },
   prob: { crack: '재료', noise: '시공', leak: '재료', opening: '안전', change: '시공', delay: '시공', slide: '구조' },
-  keyword: { guard: '안전', rush: '시공', cure: '재료', prerequisite: '시공' },
+  keyword: { guard: '안전', rush: '시공', cure: '재료', prerequisite: '시공', helmet: '안전', onOut: '시공', twice: '시공', onPlay: '시공' },
   condition: { rain: '재료', cold: '재료', soft: '구조' }
 };

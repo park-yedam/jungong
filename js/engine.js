@@ -41,6 +41,18 @@
     return a;
   }
 
+  // 작업팀이 피해 n을 받는다. 안전모가 있으면 첫 피해 1번을 막는다. 실제로 깎인 체력을 돌려준다
+  function hurt(w, n) {
+    if (n <= 0) return 0;
+    if (w.helmet) { w.helmet = false; return 0; }
+    w.hp -= n;
+    return n;
+  }
+  // 망치질 한 번 쓰기. 연속 망치질 작업팀은 한 턴에 두 번 칠 수 있다
+  const spend = w => { if (w.twice && !w.second) w.second = true; else w.ready = false; };
+  // 숙련 승급: 필드의 같은 작업팀 위에 겹쳐 낼 수 있는지 (한 팀은 한 번만)
+  const canMerge = (w, id) => !!(w && w.id === id && !w.gold);
+
   const result = (ok, msg, events) => ({ ok, msg, events: events || [] });
   const fail = msg => result(false, msg);
 
@@ -132,6 +144,21 @@
     return ' 공정 완료! 벽돌 ' + got + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').' + (floors(s) > before ? ' ' + floorName(s, floors(s)) + ' 완성!' : '');
   }
 
+  // i번 작업팀이 체력이 다 돼 퇴장한다. 퇴장 효과(예: 카드 뽑기)가 있으면 바로 쓰고, 안내 글을 돌려준다
+  function retire(s, i) {
+    const c = card(s.my[i].id);
+    s.my[i] = null;
+    return c.onOut && c.onOut.draw ? ' 퇴장 효과: 카드 ' + draw(s, c.onOut.draw) + '장을 뽑았어요.' : '';
+  }
+  // 등장 효과: z번에 낸 작업팀 말고, 정해진 공종 작업팀들이 공격·체력을 얻는다
+  function onPlayEffect(s, z, e, events) {
+    const ks = s.my.map((w, k) => (w && k !== z && e.trades.includes(card(w.id).trade) ? k : -1)).filter(k => k >= 0);
+    ks.forEach(k => { s.my[k].atk += e.atk || 0; s.my[k].hp += e.hp || 0; });
+    const stat = (e.atk ? ' 공격 +' + e.atk : '') + (e.hp ? ' 체력 +' + e.hp : '');
+    if (ks.length) events.push({ t: 'buff', zones: ks, atk: e.atk || 0, hp: e.hp || 0 });
+    return ' 등장 효과: ' + (ks.length ? '작업팀 ' + ks.length + '팀' + stat : '강해질 작업팀이 없었어요') + '.';
+  }
+
   function draw(s, n) {
     let got = 0;
     for (let k = 0; k < n && s.deck.length && s.hand.length < R().handMax; k++) { s.hand.push(s.deck.shift()); got++; }
@@ -162,7 +189,7 @@
     if (!id) return '손패에 없는 카드예요.';
     const c = card(id), cost = costOf(s, id);
     if (cost > s.coins) return c.name + ': 코인 ' + cost + '개가 필요해요. 지금은 ' + s.coins + '개뿐이에요.';
-    if (c.kind === 'crew' && !s.my.some(w => !w)) return '작업 구역이 꽉 찼어요. 작업팀이 퇴장하면 자리가 나요.';
+    if (c.kind === 'crew' && !s.my.some(w => !w) && !s.my.some(w => canMerge(w, id))) return '작업 구역이 꽉 찼어요. 작업팀이 퇴장하면 자리가 나요.';
     if (c.target === 'ally' && !s.my.some(Boolean)) return c.name + ': 작업팀이 있어야 쓸 수 있어요.';
     if (c.target === 'problem' && !s.probs.some(Boolean)) return c.name + ': 없앨 문제 카드가 없어요.';
     if (c.cancelForecast && (!nextProblem(s) || s.cancelNext)) return c.name + ': 취소할 예고 문제가 없어요.';
@@ -175,7 +202,7 @@
     const why = whyCantPlay(s, h);
     if (why) return fail(why);
     const id = s.hand[h], c = card(id), cost = costOf(s, id);
-    if (c.kind === 'crew' && (!(z >= 0 && z < s.my.length) || s.my[z])) return fail('빈 작업 구역(점선)을 골라 주세요.');
+    if (c.kind === 'crew' && !(z >= 0 && z < s.my.length && (!s.my[z] || canMerge(s.my[z], id)))) return fail('빈 작업 구역(점선)을 골라 주세요. 같은 작업팀 위에는 겹쳐 내서 숙련 승급할 수 있어요.');
     if (c.target === 'ally' && !(z >= 0 && s.my[z])) return fail(c.name + ': 쓸 작업팀을 골라 주세요.');
     if (c.target === 'problem' && !(z >= 0 && s.probs[z])) return fail(c.name + ': 없앨 문제 카드를 골라 주세요.');
 
@@ -186,11 +213,15 @@
 
     if (c.kind === 'spell') return castSpell(s, id, z);
 
+    if (s.my[z]) return mergeCard(s, z, c);
+
     const cond = conditionOf(s);
     const w = { id, atk: c.atk, hp: c.hp, ready: !!c.rush, fresh: true, curing: c.cure ? 1 + ((cond && cond.cureDelay) || 0) : 0, guard: !!c.guard, buff: 0, pre: false };
     const pre = c.prerequisite && s.my.some(x => x && x.id === c.prerequisite);
     if (pre && c.preBonus) { w.atk += c.preBonus.atk; w.hp += c.preBonus.hp; }
     w.pre = !!pre;
+    if (c.helmet) w.helmet = true;
+    if (c.twice || (pre && c.preTwice)) w.twice = true;
     s.my[z] = w;
     mark(s);
 
@@ -200,7 +231,22 @@
     if (pre && c.preBonus) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 +' + c.preBonus.atk + '/+' + c.preBonus.hp + '!';
     if (pre && c.preDraw) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 카드 ' + draw(s, c.preDraw) + '장을 뽑았어요!';
     if (w.curing) msg += w.curing > 1 ? ' 한파라서 양생이 ' + w.curing + '턴 걸려요.' : ' 양생이 끝나면 더 단단해져요.';
+    if (pre && c.preTwice) msg += ' 앞 공정(' + card(c.prerequisite).name + ')이 있어서 연속 망치질!';
     const events = [{ t: 'bubble', zone: z, text: c.line }];
+    if (c.onPlay) msg += onPlayEffect(s, z, c.onPlay, events);
+    msg += advanceCombo(s, c.trade, events);
+    return result(true, msg, events);
+  }
+
+  // 숙련 승급: z번의 같은 작업팀 위에 겹쳐 내면 두 팀이 합쳐져 금색 숙련 작업팀이 된다 (카드 공격·체력만큼 더함, 한 번만)
+  function mergeCard(s, z, c) {
+    const w = s.my[z];
+    w.atk += c.atk; w.hp += c.hp; w.gold = true;
+    if (c.helmet) w.helmet = true;   // 새로 합류한 팀이 안전모를 쓰고 온다
+    mark(s);
+    const events = [{ t: 'bubble', zone: z, text: '숙련 승급!' }, { t: 'merge', zone: z }];
+    let msg = c.name + ' 숙련 승급! 두 팀이 합쳐졌어요 (공격 ' + w.atk + ', 체력 ' + w.hp + ').';
+    if (c.onPlay) msg += onPlayEffect(s, z, c.onPlay, events);
     msg += advanceCombo(s, c.trade, events);
     return result(true, msg, events);
   }
@@ -258,7 +304,7 @@
       if (gi >= 0) return fail(ga(guardName) + ' 방호로 막고 있어요. 먼저 치워 주세요.');
       mark(s);
       const before = floors(s);
-      w.ready = false;
+      spend(w);
       const events = [{ t: 'bubble', zone: i, text: '통통!' }, { t: 'bricks', zone: i, n: a }];
       build(s, a, events);
       let msg = '통통! ' + ga(c.name) + ' 벽돌 ' + a + '칸을 쌓았어요 (' + s.bricks + '/' + s.totalBricks + ').';
@@ -271,14 +317,17 @@
     if (!p) return fail('문제 카드나 건물을 골라 주세요.');
     if (gi >= 0 && !p.guard) return fail('방호(' + guardName + ')부터 치워야 해요!');
     mark(s);
-    const pname = problem(p.id).name, back = Math.max(0, p.atk - protection(s, i));
-    p.hp -= a; w.hp -= back; w.ready = false;
-    const events = [{ t: 'hit', from: i, zone: target, n: a, back }];   // 화면 연출용: 준 피해, 되치기로 받은 피해
+    const pname = problem(p.id).name, raw = Math.max(0, p.atk - protection(s, i));
+    p.hp -= a;
+    const back = hurt(w, raw), helmet = raw > 0 && back === 0;
+    spend(w);
+    const events = [{ t: 'hit', from: i, zone: target, n: a, back, helmet }];   // 화면 연출용: 준 피해, 되치기로 받은 피해, 안전모가 막았는지
     let msg = c.name + ' → ' + pname + ': ' + a + ' 피해.';
     if (p.hp <= 0) { s.probs[target] = null; msg += ' ' + pname + ' 해결!'; events.push({ t: 'solved', zone: target }); }
     if (w.hp <= 0) {
-      s.my[i] = null; msg += ' ' + c.name + ': "오늘 작업 끝!" 하고 퇴장했어요.'; events.push({ t: 'out', zone: i });
+      msg += ' ' + c.name + ': "오늘 작업 끝!" 하고 퇴장했어요.' + retire(s, i); events.push({ t: 'out', zone: i });
     } else {
+      if (helmet) msg += ' 안전모가 되치기를 막았어요.';
       if (back > 0) msg += ' 되치기로 체력 -' + back + '.';
       events.push({ t: 'bubble', zone: i, text: p.hp <= 0 ? '치웠습니다!' : '통통!' });
     }
@@ -331,15 +380,14 @@
       if (!p || p.atk <= 0) return;
       const d = problem(p.id), dmgTo = k => Math.max(0, p.atk - protection(s, k));
       let ti = s.my.findIndex(w => w && w.guard);
-      if (ti < 0) ti = s.my.findIndex((w, k) => w && w.hp <= dmgTo(k));
+      if (ti < 0) ti = s.my.findIndex((w, k) => w && !w.helmet && w.hp <= dmgTo(k));
       if (ti < 0 && d.workersOnly) ti = s.my.findIndex(Boolean);
       if (ti < 0) { if (!d.workersOnly) hitCalendar(p.atk, d.name, pi); return; }
-      const w = s.my[ti], wname = card(w.id).name, dmg = dmgTo(ti);
-      w.hp -= dmg;
+      const w = s.my[ti], wname = card(w.id).name, raw = dmgTo(ti), dmg = hurt(w, raw), helmet = raw > 0 && dmg === 0;
       const back = atkOf(s, w);
       p.hp -= back;   // 작업팀은 맞으면서 자기 공격력만큼 되친다
-      say('hitWorker', d.name + ' → ' + wname + ': 체력 -' + dmg + '.', { from: pi, zone: ti, n: dmg, back });
-      if (w.hp <= 0) { s.my[ti] = null; say('out', wname + ': "오늘 작업 끝!" 하고 퇴장.', { zone: ti }); }
+      say('hitWorker', d.name + ' → ' + wname + (helmet ? ': 안전모가 막았어요.' : ': 체력 -' + dmg + '.'), { from: pi, zone: ti, n: dmg, back, helmet });
+      if (w.hp <= 0) { const note = retire(s, ti); say('out', wname + ': "오늘 작업 끝!" 하고 퇴장.' + note, { zone: ti }); }
       if (p.hp <= 0) { s.probs[pi] = null; say('solved', d.name + ' 해결!', { zone: pi }); }
     });
 
@@ -382,7 +430,7 @@
           say('cured', card(w.id).name + ' 양생 완료 +' + cure.atk + '/+' + cure.hp + '.', { zone: k, atk: cure.atk, hp: cure.hp });
         }
       }
-      w.ready = !w.curing; w.fresh = false;
+      w.ready = !w.curing; w.fresh = false; w.second = false;
     });
     if (s.deck.length) {
       if (s.hand.length < r.handMax) s.hand.push(s.deck.shift());

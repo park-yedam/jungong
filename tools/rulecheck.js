@@ -336,11 +336,73 @@ t('자재가 남아 있으면 자재 소진 없음', !E.endTurn(s).events.some(e
   t('공정 순서: 예전에 저장된 판(combo 없음)도 동작', E.playCard(g9, 0, 0).ok && g9.combo === 1);
 }
 
+// ---- 카드 확장 1단계: 키워드 4개(안전모·퇴장 효과·연속 망치질·등장 효과)와 숙련 승급 ----
+// 새 카드는 다음 단계에 들어오므로, 기존 카드에 키워드만 붙인 시험용 카드로 확인한다 (점검이 끝나면 지운다)
+const TEST_CARDS = {
+  kw_helmet: Object.assign({}, JG.CARDS.shore, { name: '시험 안전모', guard: false, atk: 2, hp: 2, helmet: true }),
+  kw_out: Object.assign({}, JG.CARDS.rebar, { name: '시험 퇴장', onOut: { draw: 1 } }),
+  kw_twice: Object.assign({}, JG.CARDS.pump, { name: '시험 연속', twice: true }),
+  kw_pretwice: Object.assign({}, JG.CARDS.signal, { name: '시험 조건 연속', aura: undefined, rush: true, prerequisite: 'tower', preTwice: true }),
+  kw_play: Object.assign({}, JG.CARDS.pump, { name: '시험 등장', rush: false, onPlay: { trades: ['concrete'], atk: 1, hp: 0 } })
+};
+Object.assign(JG.CARDS, TEST_CARDS);
+{
+  const W = (id, extra) => Object.assign({ id, atk: JG.CARDS[id].atk, hp: JG.CARDS[id].hp, ready: true, fresh: false, curing: 0, guard: !!JG.CARDS[id].guard, buff: 0, pre: false }, extra || {});
+  const P = (id, atk, hp) => ({ id, atk, hp, guard: false, drain: 0 });
+  // 안전모: 낼 때 씀, 현장 턴 첫 피해를 막고 벗겨짐, 다음 피해는 받음
+  let k = fresh('house', { coins: 5, maxCoins: 5, hand: ['kw_helmet'] });
+  E.playCard(k, 0, 0);
+  t('안전모: 낸 작업팀이 안전모를 씀', k.my[0].helmet === true);
+  k.probs[0] = P('opening', 3, 9);
+  let r = E.endTurn(k);
+  t('안전모: 첫 피해를 막고 벗겨짐', k.my[0] && k.my[0].hp === 2 && !k.my[0].helmet && r.events.some(e => e.t === 'hitWorker' && e.helmet && e.n === 0));
+  E.endTurn(k);
+  t('안전모: 벗겨진 뒤에는 피해를 받음', !k.my[0]);
+  // 안전모: 망치질의 되치기도 막음
+  k = fresh('house', { my: [W('kw_helmet', { helmet: true }), null, null, null], probs: [P('crack', 1, 9), null, null, null] });
+  r = E.hit(k, 0, 0);
+  t('안전모: 되치기를 막음', r.ok && k.my[0].hp === 2 && !k.my[0].helmet && r.events[0].helmet === true && r.events[0].back === 0);
+  // 안전모를 쓴 작업팀은 한 번에 퇴장시킬 수 없어서 문제 카드가 노리지 않음
+  k = fresh('house', { my: [W('kw_helmet', { helmet: true, hp: 1 }), W('rebar', { hp: 1 }), null, null], probs: [P('crack', 1, 9), null, null, null] });
+  r = E.endTurn(k);
+  t('안전모: 퇴장시킬 수 있는 다른 작업팀을 노림', r.events.some(e => e.t === 'hitWorker' && e.zone === 1) && k.my[0] && k.my[0].helmet);
+  // 퇴장 효과: 현장 턴에 퇴장해도, 되치기로 퇴장해도 카드 1장
+  k = fresh('house', { hand: [], my: [W('kw_out', { hp: 1 }), null, null, null], probs: [P('opening', 3, 9), null, null, null] });
+  E.endTurn(k);
+  t('퇴장 효과: 현장 턴에 퇴장하면 카드 1장 (턴 시작 1장과 함께 2장)', !k.my[0] && k.hand.length === 2);
+  k = fresh('house', { hand: [], my: [W('kw_out', { hp: 1 }), null, null, null], probs: [P('crack', 1, 9), null, null, null] });
+  r = E.hit(k, 0, 0);
+  t('퇴장 효과: 되치기로 퇴장해도 카드 1장', !k.my[0] && k.hand.length === 1 && /퇴장 효과/.test(r.msg));
+  // 연속 망치질: 한 턴 두 번, 다음 턴에 다시 두 번
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['kw_twice'] });
+  E.playCard(k, 0, 0);
+  const b0 = k.bricks;
+  t('연속 망치질: 한 턴에 두 번 치고 세 번째는 못 침', E.hit(k, 0, 'building').ok && E.hit(k, 0, 'building').ok && !E.hit(k, 0, 'building').ok && k.bricks === b0 + 2 * JG.CARDS.pump.atk);
+  E.endTurn(k);
+  t('연속 망치질: 다음 턴에 다시 두 번', E.hit(k, 0, 'building').ok && E.hit(k, 0, 'building').ok && !!E.whyCantHit(k, 0));
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['kw_pretwice', 'kw_pretwice'], my: [W('tower'), null, null, null] });
+  E.playCard(k, 0, 1); k.my[0] = null; E.playCard(k, 0, 2);
+  t('연속 망치질(선행공정): 타워크레인이 있을 때만', k.my[1].twice === true && !k.my[2].twice);
+  // 등장 효과: 정해진 공종의 다른 작업팀만 얻음
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['kw_play'], my: [W('pour'), W('form'), null, null] });
+  r = E.playCard(k, 0, 2);
+  t('등장 효과: 콘크리트 작업팀만 공격 +1, 자신과 다른 공종은 그대로', k.my[0].atk === JG.CARDS.pour.atk + 1 && k.my[1].atk === JG.CARDS.form.atk && k.my[2].atk === JG.CARDS.pump.atk
+    && r.events.some(e => e.t === 'buff' && e.zones.join() === '0'));
+  // 숙련 승급: 같은 작업팀 위에 겹쳐 내면 합쳐짐 (한 번만), 꽉 찬 필드에서도 낼 수 있음, 공정 순서에도 셈
+  k = fresh('house', { coins: 5, maxCoins: 5, hand: ['rebar', 'rebar', 'form'], my: [W('rebar'), W('pump'), W('safety'), W('pour')] });
+  t('숙련 승급: 필드가 꽉 차도 같은 작업팀이 있으면 낼 수 있음', !E.whyCantPlay(k, 0) && !!E.whyCantPlay(k, 2));
+  r = E.playCard(k, 0, 0);
+  t('숙련 승급: 공격·체력이 카드만큼 더해지고 금색, 공정 순서 1단계', r.ok && k.my[0].atk === 2 && k.my[0].hp === 4 && k.my[0].gold && k.combo === 1 && r.events.some(e => e.t === 'merge'));
+  t('숙련 승급: 한 팀에 한 번만', !E.playCard(k, 0, 0).ok && k.hand.length === 2);
+  t('숙련 승급: 다른 작업팀 위에는 못 냄', !E.playCard(fresh('house', { coins: 5, hand: ['rebar'], my: [W('pump'), null, null, null] }), 0, 0).ok);
+}
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다
 {
   const SITES = ['house', 'retail', 'apart', 'winter', 'deep'], DECK = ['rebar', 'rebar', 'form', 'form', 'pour', 'pump', 'shore', 'safety', 'signal', 'earth', 'gangform', 'wetcure'];
+  const KW_DECK = ['rebar', 'rebar', 'kw_helmet', 'kw_helmet', 'kw_out', 'kw_out', 'kw_twice', 'kw_twice', 'kw_play', 'pour', 'tower', 'kw_pretwice'], DECKS = [null, DECK, KW_DECK];
   let turns = 0, hits = 0, bad = [], changed = 0, withAction = 0;
   const actual = (before, s, res) => {
     const a = { probs: before.probs.map(() => []), my: before.my.map(() => null), days: before.days - s.days, lose: s.over === 'lose' };
@@ -353,13 +415,13 @@ t('자재가 남아 있으면 자재 소진 없음', !E.endTurn(s).events.some(e
   };
   for (let g = 0; g < 400; g++) {
     const rnd = E.random(1000 + g), pick = arr => arr[Math.floor(rnd() * arr.length)];
-    const s = E.newGame({ siteId: SITES[g % 5], seed: g + 1, deck: g % 2 ? DECK : null, pledge: ['chant', null, 'inspect'][g % 3], difficulty: ['easy', 'normal', 'hard'][g % 3] });
+    const s = E.newGame({ siteId: SITES[g % 5], seed: g + 1, deck: DECKS[Math.floor(g / 2) % 3], pledge: ['chant', null, 'inspect'][g % 3], difficulty: ['easy', 'normal', 'hard'][g % 3] });
     for (let turn = 0; turn < 16 && !s.over; turn++) {
       for (let k = 0; k < 4; k++) {   // 카드 내기 (빈 칸 또는 대상 무작위)
         const h = Math.floor(rnd() * s.hand.length);
         if (!s.hand.length || E.whyCantPlay(s, h)) continue;
         const c = JG.CARDS[s.hand[h]];
-        const z = c.kind === 'crew' ? s.my.findIndex(w => !w) : c.target === 'ally' ? s.my.findIndex(Boolean) : c.target === 'problem' ? s.probs.findIndex(Boolean) : null;
+        const z = c.kind === 'crew' ? (s.my.some(w => !w) ? s.my.findIndex(w => !w) : s.my.findIndex(w => w && w.id === s.hand[h] && !w.gold)) : c.target === 'ally' ? s.my.findIndex(Boolean) : c.target === 'problem' ? s.probs.findIndex(Boolean) : null;
         E.playCard(s, h, z);
       }
       for (let i = 0; i < 4; i++) {   // 망치질 (문제 또는 건물 무작위)
@@ -391,8 +453,9 @@ t('자재가 남아 있으면 자재 소진 없음', !E.endTurn(s).events.some(e
   t('현장 턴 예상 = 실제 (' + turns + '턴, 문제가 움직인 턴 ' + withAction + ')', !bad.some(b => !b.startsWith('망치질')) && turns > 2000 && withAction > 1000);
   t('망치질 예상 = 실제 (' + hits + '번)', !bad.some(b => b.startsWith('망치질')) && hits > 500);
   if (bad.length) console.log('  다른 예: ' + bad.slice(0, 3).join('\n  '));
-  console.log('  미리 보기 비교: 판 400개, 현장 턴 ' + turns + '번(문제가 움직인 턴 ' + withAction + '), 망치질 ' + hits + '번, 다른 곳 ' + bad.length + '개');
+  console.log('  미리 보기 비교: 판 400개(시험용 키워드 카드 덱 포함), 현장 턴 ' + turns + '번(문제가 움직인 턴 ' + withAction + '), 망치질 ' + hits + '번, 다른 곳 ' + bad.length + '개');
 }
+Object.keys(TEST_CARDS).forEach(id => delete JG.CARDS[id]);   // 시험용 카드 지우기
 
 // 조사
 t('조사: 철근공은 / 펌프카는', E.eun('철근공') === '철근공은' && E.eun('펌프카') === '펌프카는');

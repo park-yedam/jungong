@@ -2,7 +2,8 @@
 // concepts·quiz는 화면 없이 계산만 해서 Node 점검에서도 쓴다. 화면(풀이 창 페이지)은 pages에서 만든다.
 (() => {
   const JG = globalThis.JG, E = JG.engine;
-  const KW = ['guard', 'rush', 'cure', 'prerequisite'];
+  const KW = ['guard', 'rush', 'cure', 'prerequisite', 'helmet', 'onOut', 'twice', 'onPlay'];
+  const hasKw = (c, k) => !!(c[k] || (k === 'twice' && c.preTwice));   // 연속 망치질은 선행공정 조건부(preTwice)도
   const end = s => (/[.!?]$/.test(s) ? s : s + '.');
 
   // 이번 판에 나온 개념: 낸 카드, 그 카드의 키워드, 나온 문제, 현장 조건 → 단원 순서대로
@@ -12,7 +13,7 @@
     cards.forEach(id => {
       const c = JG.CARDS[id];
       out.push({ unit: U.card[id], name: c.name, kind: c.kind === 'crew' ? '작업팀' : '공법', text: end(c.term) + ' ' + end(c.lore) });
-      KW.forEach(k => { if (c[k] && !kws.includes(k)) kws.push(k); });
+      KW.forEach(k => { if (hasKw(c, k) && !kws.includes(k)) kws.push(k); });
     });
     probs.forEach(id => {
       const p = JG.PROBLEMS[id];
@@ -32,7 +33,7 @@
     let used = (g.rec.cards || []).slice();
     // 낸 카드가 3장보다 적으면 기본 카드로 채운다
     Object.keys(JG.CARDS).forEach(id => { if (used.length < 3 && !JG.CARDS[id].expansion && !used.includes(id)) used.push(id); });
-    const kws = KW.filter(k => used.some(id => JG.CARDS[id][k]));
+    const kws = KW.filter(k => used.some(id => hasKw(JG.CARDS[id], k)));
     const pool = E.shuffle(used.map(cardItem).concat(kws.map(kwItem)), seed).slice(0, 3);
     const allCards = Object.keys(JG.CARDS).map(cardItem), allKws = KW.map(kwItem);
     const qs = pool.map((it, i) => {

@@ -118,12 +118,18 @@
   // 사건 하나의 숫자와 흔들림 (부딪히는 순간, 또는 그 사건을 그린 직후에 부른다)
   function numbers(e) {
     if (e.t === 'hitWorker') {
-      pop(ZX[e.zone] + 90, MY_Y, e.n ? '-' + e.n : '막음', e.n ? RED : '#FFFFFF');
+      pop(ZX[e.zone] + 90, MY_Y, e.helmet ? '안전모!' : e.n ? '-' + e.n : '막음', e.helmet ? '#9CC7DC' : e.n ? RED : '#FFFFFF', e.helmet ? 36 : 48);
       if (e.back) pop(ZX[e.from] + 90, PROB_Y, '-' + e.back, RED, 32);
       if (e.n >= 3) fx.shakeScreen();
     } else if (e.t === 'hit') {
       pop(ZX[e.zone] + 90, PROB_Y, '-' + e.n);
       if (e.back) pop(ZX[e.from] + 90, MY_Y, '-' + e.back, RED, 32);
+      if (e.helmet) pop(ZX[e.from] + 90, MY_Y, '안전모!', '#9CC7DC', 36);
+    } else if (e.t === 'buff') {   // 등장 효과로 강해진 작업팀들
+      e.zones.forEach(k => pop(ZX[k] + 90, MY_Y, (e.atk ? '공격+' + e.atk : '') + (e.hp ? ' 체력+' + e.hp : ''), GREEN, 28));
+    } else if (e.t === 'merge') {   // 숙련 승급
+      pop(ZX[e.zone] + 90, MY_Y, '숙련!', GOLD);
+      fx.burst(ZX[e.zone] + 90, MY_Y, 20);
     } else if (e.t === 'calendar' || e.t === 'penalty' || e.t === 'empty') {
       pop(CAL[0], CAL[1], '-' + e.n + '일');
       fx.shake(calendarEl());
@@ -191,7 +197,8 @@
     ui.sel = { t: 'card', i };
     ui.msg = c.target === 'ally' ? c.name + ' 선택! 쓸 작업팀을 누르세요.'
       : c.target === 'problem' ? c.name + ' 선택! 없앨 문제 카드를 누르세요.'
-      : c.name + ' 선택! 점선으로 된 빈 작업 구역을 누르세요.';
+      : c.name + ' 선택! 점선으로 된 빈 작업 구역을 누르세요.'
+        + (g.my.some(w => w && w.id === g.hand[i] && !w.gold) ? ' 필드의 같은 ' + c.name + ' 위에 겹쳐 내면 숙련 승급(두 팀이 합쳐짐)!' : '');
     JG.sound.play('tick');
   }
 
@@ -464,7 +471,7 @@
       if (same) same.n += a.n; else merged.push({ to: a.to, n: a.n });
     });
     const parts = merged.map(a => a.to === 'calendar' ? '달력 -' + a.n + '일' : a.to === 'shield' ? '안전 구호가 막음'
-      : JG.CARDS[s.my[a.to].id].name + ' -' + a.n + (pv.my[a.to].out && last[a.to] === i ? ' 퇴장' : ''));
+      : JG.CARDS[s.my[a.to].id].name + (a.n ? ' -' + a.n : ' 막음') + (pv.my[a.to].out && last[a.to] === i ? ' 퇴장' : ''));   // 0이면 안전모·안전관리자가 막음
     return parts.map(p => '→ ' + p).join('\n');
   }
   // 고른 작업팀으로 이 문제를 치면: "치면 해결!", "체력 1 남음" (되치기를 받으면 둘째 줄 "되치기 -1 퇴장")
@@ -511,17 +518,18 @@
     const canAnyAct = !s.over && !sel && !busy;
     const myZones = s.my.map((w, i) => {
       const c = w ? JG.CARDS[w.id] : null, isSel = selW && sel.i === i, act = canAnyAct && w && canHit(i);
+      const merge = placeMode && !!w && w.id === s.hand[sel.i] && !w.gold;   // 같은 작업팀 위에 겹쳐 내면 숙련 승급
       const place = placeMode && !w, ally = allyMode && !!w;
       const atk = w ? E.atkOf(s, w) : 0, hurt = pv && w ? pv.my[i] : null;
       const label = hurt ? (hurt.n ? '-' + hurt.n + (hurt.out ? ' 퇴장' : '') : '막음') : '';
       return {
         x: ZX[i], click: 'my:' + i, info: w ? 'card:' + w.id : '',
-        aria: w ? c.name + ', 공격 ' + atk + ', 체력 ' + Math.max(0, w.hp) + (hurt ? '. 다음 현장 턴에 ' + (hurt.n ? '체력 ' + label : '맞지만 피해 없음') : '') + (ally ? '. 눌러서 ' + sc.name : '') : (place ? '빈 작업 구역. 여기에 놓기' : '빈 작업 구역'),
+        aria: w ? (w.gold ? '숙련 ' : '') + c.name + ', 공격 ' + atk + ', 체력 ' + Math.max(0, w.hp) + (hurt ? '. 다음 현장 턴에 ' + (hurt.n ? '체력 ' + label : '맞지만 피해 없음') : '') + (ally ? '. 눌러서 ' + sc.name : '') + (merge ? '. 눌러서 겹쳐 내기, 숙련 승급' : '') : (place ? '빈 작업 구역. 여기에 놓기' : '빈 작업 구역'),
         occupied: !!w, empty: !w, emptyText: place ? '여기에 놓기' : '빈 작업 구역', emptyColor: place ? '#23602A' : '#8B5A2B',
-        bg: w ? '#CF965C' : 'transparent',
-        border: isSel ? '3px solid #FFE08A' : w ? '3px solid #8B5A2B' : (place ? '3px dashed #23602A' : '3px dashed #B07A47'),
-        outline: isSel ? '3px solid #FFE08A' : (act || place || ally) ? '3px solid #7BD389' : '3px solid transparent',
-        anim: (act || place || ally) ? PULSE : 'none',
+        bg: w ? (w.gold ? '#E2B65C' : '#CF965C') : 'transparent',
+        border: isSel ? '3px solid #FFE08A' : w ? (w.gold ? '3px solid #F7C948' : '3px solid #8B5A2B') : (place ? '3px dashed #23602A' : '3px dashed #B07A47'),
+        outline: isSel ? '3px solid #FFE08A' : (act || place || ally || merge) ? '3px solid #7BD389' : '3px solid transparent',
+        anim: (act || place || ally || merge) ? PULSE : 'none',
         shadow: w ? SP[w.id] : '', spriteTop: w && isSmall(w.id) ? 36 : 24,
         name: w ? c.name : '', atk, hp: w ? Math.max(0, w.hp) : 0,
         tag: !w ? '' : w.curing ? (w.curing > 1 ? '양생 ' + w.curing + '턴' : '양생 중') : w.guard ? '방호' : canHit(i) ? '칠 수 있음' : (w.ready ? '대기' : '다음 턴부터'),
