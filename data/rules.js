@@ -12,6 +12,8 @@ JG.RULES = {
   delayPenalty: 2,       // 지체상금으로 깎이는 공기
   orderCost: 2,          // 작업지시 코인
   orderAtk: 1,           // 작업지시로 오르는 공격력 (이번 턴만)
+  shopCost: 1,           // 자재 발주 코인 (한 턴에 한 번, 시장 카드 중 1장을 손패로)
+  shopOffers: 3,         // 자재 발주 때 보여 주는 시장 카드 수
   bricksPerFloor: 4,     // 벽돌 4칸 = 1층
   deckSize: 12,          // 덱 장수
   emptyDeckDays: 1,      // 자재 소진: 턴을 시작할 때 뽑을 카드가 없으면 깎이는 공기

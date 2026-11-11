@@ -25,7 +25,7 @@
     const d = JG.save.data, deck = d.deck && d.deck.length === R.deckSize ? d.deck : null;   // 자재 창고에서 고른 덱
     // 수업용 현장도 코드로 정해진 시드라 같은 덱이면 반 전체가 같은 순서로 뽑는다
     const site = arg.daily ? JG.daily.today() : arg.scenario ? JG.scenario.siteFor(JG.scenario.decode(arg.scenario)) : undefined;
-    return E.newGame({ siteId: arg.siteId, site, pledge: arg.pledge, seed: site ? site.seed : Date.now() % 1000000 + 1, deck, difficulty: d.settings.difficulty });
+    return E.newGame({ siteId: arg.siteId, site, pledge: arg.pledge, seed: site ? site.seed : Date.now() % 1000000 + 1, deck, difficulty: d.settings.difficulty, pool: JG.progress.owned() });
   }
   const isDaily = () => !!(g.site && g.site.daily);
   const isScenario = () => !!(g.site && g.site.scenario);
@@ -167,7 +167,8 @@
   }
   // 새로 뽑은 손패(k번 카드들)가 자재 더미에서 날아온다 (다시 그린 직후)
   const PILE = { x: 42, y: 468, w: 180, h: 80 };
-  const arriveCards = ks => post.push(() => ks.forEach((k, j) => fx.arrive(at('card:' + k), PILE, j * 120)));
+  const arriveCards = (ks, from) => post.push(() => ks.forEach((k, j) => fx.arrive(at('card:' + k), from || PILE, j * 120)));
+  const SHOP = { x: 1266, y: 330, w: 150, h: 114 };   // 자재 발주 버튼
   const lastCards = n => Array.from({ length: n }, (_, j) => g.hand.length - n + j);   // 뽑은 카드는 손패 끝에 붙는다
 
   // 작업팀(i)이 대상(문제 칸 번호 또는 'building')으로 돌진해 친다. 해결된 문제·퇴장한 작업팀은 흐려지며 사라진다
@@ -325,17 +326,20 @@
   }
 
   // ---------- 자재 검수: 판을 시작할 때 처음 받은 손패에서 바꿀 카드를 고른다 (한 번만) ----------
+  // 창 안의 작은 카드 (자재 검수·자재 발주): 이름, 그림, 코인·능력치, 효과. on이면 빨간 테두리와 "바꿈"
+  function miniCard(id, act, x, on, aria) {
+    const c = JG.CARDS[id], crew = c.kind === 'crew', esc = JG.esc;
+    return '<button type="button" data-act="' + act + '"' + (on === null ? '' : ' aria-pressed="' + on + '"') + ' aria-label="' + esc(aria) + '" style="position: absolute; left: ' + x + 'px; top: 6px; width: 128px; height: 210px; padding: 0; margin: 0; font: inherit; color: #3B2A20; cursor: pointer; box-sizing: border-box; background: #F4E4BC; border: 3px solid ' + (crew ? '#8B5A2B' : '#5B8DEF') + '; outline: ' + (on ? '4px solid #E35D5B' : '3px solid transparent') + '; outline-offset: 2px; opacity: ' + (on ? 0.6 : 1) + '">'
+      + '<span style="position: absolute; left: 0; top: 6px; width: 122px; text-align: center; font-size: 16px; line-height: 16px">' + esc(c.name) + '</span>'
+      + '<span aria-hidden="true" style="position: absolute; left: 34px; top: ' + (isSmall(id) ? 52 : 38) + 'px; width: 3px; height: 3px; box-shadow: ' + SP[id] + '"></span>'
+      + '<span style="position: absolute; left: 6px; top: 128px; width: 110px; font-size: 14px; line-height: 16px; text-align: center; word-break: keep-all">코인 ' + c.cost + (crew ? ' · ' + c.atk + '/' + c.hp : ' · 공법') + '<br>' + esc(c.text) + '</span>'
+      + (on ? '<span style="position: absolute; left: 34px; top: 74px; padding: 2px 8px; background: #B83E3C; border: 3px solid #3B2A20; color: #FFFFFF; font-size: 16px; line-height: 16px">바꿈</span>' : '')
+      + '</button>';
+  }
+
   function mulliganPage() {
     const picks = [], L = JG.look, esc = JG.esc;
-    const cardBox = (id, k) => {
-      const c = JG.CARDS[id], on = picks.includes(k), crew = c.kind === 'crew';
-      return '<button type="button" data-act="mull:' + k + '" aria-pressed="' + on + '" aria-label="' + esc(c.name + ', 코인 ' + c.cost + '. ' + c.text + (on ? '. 바꿀 카드로 고름' : '')) + '" style="position: absolute; left: ' + k * 138 + 'px; top: 6px; width: 128px; height: 210px; padding: 0; margin: 0; font: inherit; color: #3B2A20; cursor: pointer; box-sizing: border-box; background: #F4E4BC; border: 3px solid ' + (crew ? '#8B5A2B' : '#5B8DEF') + '; outline: ' + (on ? '4px solid #E35D5B' : '3px solid transparent') + '; outline-offset: 2px; opacity: ' + (on ? 0.6 : 1) + '">'
-        + '<span style="position: absolute; left: 0; top: 6px; width: 122px; text-align: center; font-size: 16px; line-height: 16px">' + esc(c.name) + '</span>'
-        + '<span aria-hidden="true" style="position: absolute; left: 34px; top: ' + (isSmall(id) ? 52 : 38) + 'px; width: 3px; height: 3px; box-shadow: ' + SP[id] + '"></span>'
-        + '<span style="position: absolute; left: 6px; top: 128px; width: 110px; font-size: 14px; line-height: 16px; text-align: center; word-break: keep-all">코인 ' + c.cost + (crew ? ' · ' + c.atk + '/' + c.hp : ' · 공법') + '<br>' + esc(c.text) + '</span>'
-        + (on ? '<span style="position: absolute; left: 34px; top: 74px; padding: 2px 8px; background: #B83E3C; border: 3px solid #3B2A20; color: #FFFFFF; font-size: 16px; line-height: 16px">바꿈</span>' : '')
-        + '</button>';
-    };
+    const cardBox = (id, k) => { const c = JG.CARDS[id], on = picks.includes(k); return miniCard(id, 'mull:' + k, k * 138, on, c.name + ', 코인 ' + c.cost + '. ' + c.text + (on ? '. 바꿀 카드로 고름' : '')); };
     const btn = (act, label, x, w, green) => '<button type="button" data-act="' + act + '" style="position: absolute; left: ' + x + 'px; top: 0; width: ' + w + 'px; height: 56px; padding: 0; margin: 0; font: inherit; cursor: pointer; box-sizing: border-box; ' + L.BTN + '; '
       + (green ? L.GREEN + '; color: #FFFFFF; ' + L.OUT2 : L.PAPER + '; background: #FFFFFF; color: #3B2A20') + '; font-size: 24px; line-height: 24px">' + esc(label) + '</button>';
     const finish = swap => {
@@ -357,6 +361,30 @@
         if (act === 'mull') { const k = picks.indexOf(n); if (k >= 0) picks.splice(k, 1); else picks.push(n); JG.sound.play('tick'); }
         if (act === 'mull-go' && picks.length) finish(true);
         if (act === 'mull-keep') finish(false);
+      }
+    };
+  }
+
+  // ---------- 자재 발주: 코인 1개로 시장 카드 3장 중 1장을 손패로 (한 턴에 한 번) ----------
+  function shopPage() {
+    const offers = E.shopOffers(g);
+    return {
+      title: '자재 발주',
+      meta: '코인 ' + R.shopCost + '개로 시장 카드 ' + offers.length + '장 중 1장을 손패로 (한 턴에 한 번)',
+      body: () => '<div style="position: relative; height: 226px">' + offers.map((id, k) => { const c = JG.CARDS[id]; return miniCard(id, 'buy:' + k, k * 138, null, c.name + ' 사기, 코인 ' + c.cost + '. ' + c.text); }).join('') + '</div>'
+        + '<p style="margin: 18px 0 0; color: #5C3A1E">카드를 누르면 바로 사서 손패에 넣어요. 같은 작업팀이 필드에 있으면 겹쳐 내서 숙련 승급도 할 수 있어요.</p>'
+        + '<p style="margin: 8px 0 0; font-size: 14px; color: #5C3A1E">시장 카드는 내가 가진 카드(기본 + 받은 확장 카드) 중에서 나와요.</p>',
+      text: () => '시장 카드: ' + offers.map(id => JG.CARDS[id].name).join(', ') + '. 누르면 코인 ' + R.shopCost + '개로 사서 손패에 넣어요.',
+      click(act, n) {
+        if (act !== 'buy') return;
+        const res = E.shop(g, n);
+        JG.info.close();
+        ui.msg = res.msg;
+        if (!res.ok) return;
+        JG.sound.play('coin');
+        pop(COIN[0], COIN[1], '-' + R.shopCost, RED, 32);
+        arriveCards([g.hand.length - 1], SHOP);
+        after();
       }
     };
   }
@@ -424,6 +452,12 @@
       if (act === 'result') { JG.app.show('result', { state: g, info: ui.result }); return; }
       if (act === 'lesson') { JG.info.showPage(JG.lesson.lessonPage(g)); return; }   // 공기 지연이어도 수업용 해설은 볼 수 있다
       if (act === 'pile') { JG.sound.play('tick'); JG.info.showPage(pilePage()); return; }
+      if (act === 'shop') {
+        if (g.over) return;
+        const why = E.whyCantShop(g);
+        if (why) { ui.msg = why; return; }
+        ui.sel = null; JG.sound.play('tick'); JG.info.showPage(shopPage()); return;
+      }
       if (act === 'combo') { JG.sound.play('tick'); JG.info.showPage(comboPage()); return; }
       if (g.over) return;
       ui.bubble = null;
@@ -618,6 +652,8 @@
       daysNoteColor: pv && pv.days > 0 ? '#B83E3C' : '#5C3A1E',
       endTurn: 'end', order: 'order', restart: 'restart', exit: 'exit', endLabel: busy ? '턴 종료 ▶' : endLabel(),
       orderOpacity: !busy && !E.whyCantOrder(s) ? 1 : 0.55,
+      shop: 'shop', shopOpacity: !busy && !E.whyCantShop(s) ? 1 : 0.55, shopCost: R.shopCost,
+      shopAria: '자재 발주: 코인 ' + R.shopCost + '개로 시장 카드 ' + R.shopOffers + '장 중 1장을 손패로. ' + (E.whyCantShop(s) || '지금 할 수 있어요'),
       endOutline: canAct || busy ? '3px solid transparent' : '3px solid #7BD389', endAnim: canAct || busy || s.over ? 'none' : PULSE,
       isOver: showOver, overTitle: s.over === 'win' ? '준공!' : '공기 지연...',
       stars: '★'.repeat(st) + '☆'.repeat(3 - st), starsColor: s.over === 'win' ? '#F7C948' : '#D9CBA8',

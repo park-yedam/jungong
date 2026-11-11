@@ -66,6 +66,11 @@ function greedyTurn(s) {
     }
   }
   if (!E.whyCantOrder(s)) act(s, () => E.order(s, null));
+  if (!s.over && !E.whyCantShop(s)) {   // 남은 코인으로 자재 발주
+    const offers = E.shopOffers(s), score = id => { const c = JG.CARDS[id]; return (c.kind === 'crew' && c.trade === R.comboSteps[s.combo || 0] ? 10 : 0) + c.cost; };
+    const k = offers.indexOf(offers.slice().sort((a, b) => score(b) - score(a))[0]);
+    act(s, () => E.shop(s, k));
+  }
   for (let i = 0; i < R.zones; i++) {
     if (s.over || E.whyCantHit(s, i)) continue;
     const gi = E.guardIndex(s), leak = s.probs.findIndex(p => p && p.drain);
@@ -92,7 +97,7 @@ const randomDeck = n => E.shuffle(ALL, n + 7).slice(0, 12);
 
 function playGame(site, n, bot, cfg) {
   const deck = bot === 'random' ? randomDeck(n) : deckFor(site);
-  const s = E.newGame({ siteId: site.id, pledge: PLEDGES[n % PLEDGES.length], seed: n + 1, deck, difficulty: cfg.difficulty });
+  const s = E.newGame({ siteId: site.id, pledge: PLEDGES[n % PLEDGES.length], seed: n + 1, deck, difficulty: cfg.difficulty, pool: bot === 'random' ? ALL : [...new Set(deck)] });
   check(s);
   const rnd = E.random(n + 1000);
   while (!s.over) bot === 'greedy' ? greedyTurn(s) : randomTurn(s, rnd);

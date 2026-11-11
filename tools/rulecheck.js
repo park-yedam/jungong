@@ -486,6 +486,27 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('확장 카드는 모두 얻을 방법이 있음 (현장 보상 또는 모은 별)', Object.keys(JG.CARDS).filter(id => JG.CARDS[id].expansion && !TEST_CARDS[id]).every(id => inTiers.includes(id) || fromSites.includes(id)));
 }
 
+// ---- 카드 확장 4단계: 자재 발주 ----
+{
+  const POOL = ['rebar', 'form', 'pour', 'pump', 'shore', 'safety', 'drone', 'mason', 'proof', 'steel'];
+  const g4 = E.newGame({ siteId: 'apart', seed: 21, pool: POOL });
+  g4.coins = 3; g4.maxCoins = 3;
+  const offers = E.shopOffers(g4);
+  t('자재 발주: 시장 카드 3장, 겹치지 않고, 가진 카드 중에서', offers.length === JG.RULES.shopOffers && new Set(offers).size === offers.length && offers.every(id => POOL.includes(id)));
+  t('자재 발주: 같은 판 같은 턴이면 같은 카드 (데일리·수업 현장)', JSON.stringify(E.shopOffers(E.newGame({ siteId: 'apart', seed: 21, pool: POOL }))) === JSON.stringify(offers));
+  t('자재 발주: 시장 카드를 정하지 않으면 기본 카드만', E.shopOffers(E.newGame({ siteId: 'apart', seed: 21 })).every(id => !JG.CARDS[id].expansion));
+  const h0 = g4.hand.length, r4 = E.shop(g4, 1);
+  t('자재 발주: 코인 1개를 내고 고른 카드가 손패 끝에', r4.ok && g4.coins === 2 && g4.hand.length === h0 + 1 && g4.hand[g4.hand.length - 1] === offers[1]);
+  const snap4 = JSON.stringify(g4);
+  t('자재 발주: 한 턴에 한 번 (실패하면 그대로)', !E.shop(g4, 0).ok && JSON.stringify(g4) === snap4);
+  E.endTurn(g4);
+  g4.hand = g4.hand.slice(0, 3);   // 턴 시작에 1장을 뽑아 손패가 5장이 되므로 줄여 둔다
+  t('자재 발주: 다음 턴에 다시, 시장 카드도 바뀜', !E.whyCantShop(g4) && JSON.stringify(E.shopOffers(g4)) !== JSON.stringify(offers));
+  t('자재 발주: 코인이 없으면 못 함', !!E.whyCantShop(Object.assign(E.newGame({ siteId: 'apart', seed: 2 }), { coins: 0 })));
+  t('자재 발주: 손패가 꽉 차면 못 함', !!E.whyCantShop(Object.assign(E.newGame({ siteId: 'apart', seed: 2 }), { hand: ['rebar', 'rebar', 'form', 'form', 'pour'] })));
+  t('자재 발주: 없는 칸을 고르면 실패', !E.shop(E.newGame({ siteId: 'apart', seed: 2 }), 7).ok);
+}
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다

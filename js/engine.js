@@ -89,7 +89,8 @@
   }
 
   // ---------- 판 시작 ----------
-  // opts: { siteId 또는 site(만들어진 현장 데이터), pledge(다짐 id), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱), difficulty('easy' | 'normal' | 'hard') }
+  // opts: { siteId 또는 site(만들어진 현장 데이터), pledge(다짐 id), seed(덱 섞기), deck(카드 id 목록, 없으면 기본 덱), difficulty('easy' | 'normal' | 'hard'),
+  //         pool(자재 발주 시장에 나올 수 있는 카드 id 목록, 없으면 기본 카드) }
   function newGame(opts) {
     const r = R(), site = opts.site || JG.SITES.find(x => x.id === opts.siteId), pledge = JG.PLEDGES[opts.pledge] || {};
     const deck = shuffle(opts.deck || JG.STARTER_DECK, opts.seed || 1);
@@ -103,6 +104,7 @@
     }
     return {
       siteId: site.id, site: opts.site || undefined, pledge: opts.pledge || null, diff: opts.difficulty || 'normal',
+      seed: opts.seed || 1, pool: opts.pool || null,   // 자재 발주 시장 카드를 정하는 데 쓴다
       turn: 1, maxCoins: r.startCoins, coins: r.startCoins,
       bricks: 0, totalBricks: site.bricks, days: r.days, fi: 0,
       hand: deck.splice(0, handSize), deck,
@@ -381,6 +383,31 @@
     return result(true, '작업지시! ' + card(w.id).name + ' 공격 +' + R().orderAtk + ' (이번 턴만).', [{ t: 'bubble', zone: i, text: '알겠습니다!' }]);
   }
 
+  // ---------- 내 턴: 자재 발주 ----------
+  // 시장 카드: 판의 시드와 턴으로 정해진다 (같은 판 같은 턴이면 늘 같은 카드). 쓸 수 있는 카드(pool) 중에서 겹치지 않게
+  function shopOffers(s) {
+    const pool = s.pool || Object.keys(JG.CARDS).filter(id => !card(id).expansion);
+    return shuffle(pool.filter(id => card(id)), (s.seed || 1) * 31 + s.turn * 977 + 7).slice(0, R().shopOffers);
+  }
+  function whyCantShop(s) {
+    if (s.over) return '판이 끝났어요.';
+    if (s.shopUsed) return '자재 발주는 한 턴에 한 번만 할 수 있어요.';
+    if (s.coins < R().shopCost) return '자재 발주에는 코인 ' + R().shopCost + '개가 필요해요.';
+    if (s.hand.length >= R().handMax) return '손패가 꽉 찼어요 (최대 ' + R().handMax + '장). 카드를 먼저 내 주세요.';
+    return null;
+  }
+  // 시장 카드 k번째를 사서 손패에 넣는다
+  function shop(s, k) {
+    const why = whyCantShop(s);
+    if (why) return fail(why);
+    const id = shopOffers(s)[k];
+    if (!id) return fail('살 카드를 골라 주세요.');
+    s.coins -= R().shopCost;
+    s.hand.push(id);
+    s.shopUsed = true;
+    return result(true, '자재 발주! ' + card(id).name + ' 카드가 손패로 들어왔어요.', [{ t: 'shop', id }]);
+  }
+
   // ---------- 턴 종료 → 현장 턴 → 다음 내 턴 ----------
   // opts.snapshots가 true면 각 사건에 그 순간의 상태 사본(state)을 붙인다 (화면에서 하나씩 보여 주기용)
   function endTurn(s, opts) {
@@ -447,7 +474,7 @@
     const coinDrain = s.probs.reduce((n, p) => n + ((p && problem(p.id).coinDrain) || 0), 0);
     s.coins = Math.max(0, s.maxCoins - coinDrain);
     if (coinDrain) say('coinDrain', '자재 반입 지연: 이번 턴 공사비 -' + coinDrain + '.', { n: coinDrain });
-    s.orderUsed = false;
+    s.orderUsed = false; s.shopUsed = false;
     s.my.forEach((w, k) => {
       if (!w) return;
       if (w.curing) {
@@ -497,8 +524,8 @@
   }
 
   JG.engine = {
-    newGame, mulligan, playCard, hit, order, endTurn, preview, previewHit,
-    whyCantPlay, whyCantHit, whyCantOrder,
+    newGame, mulligan, playCard, hit, order, shop, shopOffers, endTurn, preview, previewHit,
+    whyCantPlay, whyCantHit, whyCantOrder, whyCantShop,
     atkOf, probAtk, costOf, guardIndex, protection, floors, totalFloors, floorName, nextProblem, stars, siteOf, conditionOf,
     random, shuffle, eun, ga, eul, ro, ieyo
   };
