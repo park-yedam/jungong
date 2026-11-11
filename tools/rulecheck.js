@@ -478,6 +478,14 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('다능공: 철근 → 형틀 단계로 셈', k.combo === 2);
 }
 
+// ---- 카드 확장 3단계: 모은 별로 여는 카드 ----
+{
+  const U = JG.CARD_UNLOCKS, inTiers = U.flatMap(u => u.cards), fromSites = JG.SITES.flatMap(st => [].concat(st.reward || []));
+  t('별로 여는 단계: 별 수가 점점 늘고, 단계마다 3장', U.every((u, i) => u.cards.length === 3 && (i === 0 || u.stars > U[i - 1].stars)));
+  t('별로 여는 카드는 한 번씩만, 현장 보상과 겹치지 않음', new Set(inTiers).size === inTiers.length && inTiers.every(id => !fromSites.includes(id) && JG.CARDS[id]));
+  t('확장 카드는 모두 얻을 방법이 있음 (현장 보상 또는 모은 별)', Object.keys(JG.CARDS).filter(id => JG.CARDS[id].expansion && !TEST_CARDS[id]).every(id => inTiers.includes(id) || fromSites.includes(id)));
+}
+
 // ---- 개선 4단계: 문제 행동 미리 보기 ----
 // 판을 여러 번 무작위로 두면서, 턴을 끝내기 직전의 미리 보기와 실제 현장 턴 결과를 비교한다.
 // 망치질할 때도 "치면 어떻게 되는지" 미리 보기와 실제 결과를 비교한다. 미리 보기는 상태를 바꾸면 안 된다

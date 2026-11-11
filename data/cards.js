@@ -292,6 +292,15 @@ JG.KEYWORDS = {
   onPlay: { name: '등장 효과', rule: '낼 때 효과가 생긴다', meaning: '자재·장비가 반입되면 그것을 쓰는 공종의 작업이 빨라진다' }
 };
 
+// 모은 별로 여는 새 카드: 모은 별이 stars개가 되면 cards를 받는다 (쉬운 카드부터). 이미 모은 별만큼은 바로 받는다
+JG.CARD_UNLOCKS = [
+  { stars: 3, cards: ['apprentice', 'mason', 'inspect'] },
+  { stars: 8, cards: ['payment', 'scaffold', 'multi'] },
+  { stars: 14, cards: ['proof', 'cpm', 'foreman'] },
+  { stars: 20, cards: ['remicon', 'testpiece', 'inspector'] },
+  { stars: 27, cards: ['steel', 'welder', 'excavator'] }
+];
+
 // 처음 주는 덱 12장 (같은 카드 최대 2장)
 JG.STARTER_DECK = [
   'rebar', 'rebar', 'form', 'form', 'pour', 'pour',

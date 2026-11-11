@@ -13,6 +13,19 @@
   // best: 현장별 최고 별, stars: 모은 별(누적), cards: 받은 확장 카드, slang: 본 현장 말,
   // dex: 풀이를 본 카드·문제(도감), settings: 소리·난이도 설정, deck: 자재 창고에서 고른 덱(없으면 기본 덱),
   // daily: 데일리 현장 날짜별 최고 별, game: 하던 판
+  // 모은 별로 열린 카드 중 아직 안 받은 것을 받는다 (도감에도). 새로 받은 카드 id 목록을 돌려준다
+  function grantStarCards(d) {
+    const got = [];
+    JG.CARD_UNLOCKS.forEach(u => {
+      if (d.stars < u.stars) return;
+      u.cards.forEach(id => {
+        if (d.cards.includes(id)) return;
+        d.cards.push(id); got.push(id);
+        if (!d.dex.cards.includes(id)) d.dex.cards.push(id);
+      });
+    });
+    return got;
+  }
   function load() {
     const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], dex: { cards: [], probs: [] }, settings: { sfx: true, bgm: true, difficulty: 'normal' }, deck: null, daily: {}, game: null };
     try {
@@ -24,6 +37,7 @@
     JG.SITES.forEach(s => {
       if (d.best[s.id]) [].concat(s.reward || []).forEach(id => { if (!d.cards.includes(id)) d.cards.push(id); if (!d.dex.cards.includes(id)) d.dex.cards.push(id); });
     });
+    grantStarCards(d);   // 카드 확장 전에 모은 별만큼은 바로 받는다
     return d;
   }
   JG.save = {
@@ -51,16 +65,18 @@
         if (!d.dex.cards.includes(id)) d.dex.cards.push(id);   // 받은 카드는 도감에도
         if (JG.CARDS[id].slang) JG.progress.seeSlang(JG.CARDS[id].slang);
       });
+      const starCards = grantStarCards(d);   // 모은 별로 열린 카드
       JG.save.write();
-      return { stars, first, rewards, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
+      return { stars, first, rewards: rewards.concat(starCards), starCards, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },
     // 데일리 현장 준공 기록: 그날의 최고 별, 모은 별 (보상 카드는 없음)
     recordDaily(key, stars) {
       const d = JG.save.data, before = d.stars, first = !d.daily[key];
       d.daily[key] = Math.max(d.daily[key] || 0, stars);
       d.stars += stars;
+      const starCards = grantStarCards(d);   // 데일리로 모은 별로도 카드가 열린다
       JG.save.write();
-      return { stars, first, rewards: [], daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
+      return { stars, first, rewards: starCards, starCards, daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },
     // 수업용 현장(시나리오 코드)은 연습용: 별·칭호·카드를 바꾸지 않는다
     recordScenario(stars) {
@@ -69,6 +85,9 @@
     },
     // 자재 창고에서 쓸 수 있는 카드: 기본 카드 + 받은 확장 카드
     owned: () => Object.keys(JG.CARDS).filter(id => !JG.CARDS[id].expansion || JG.save.data.cards.includes(id)),
+    // 다음에 열릴 카드 단계 (다 열었으면 없음), 카드가 몇 개 별에 열리는지
+    nextUnlock: () => JG.CARD_UNLOCKS.find(u => u.cards.some(id => !JG.save.data.cards.includes(id))),
+    unlockStarsOf: id => { const u = JG.CARD_UNLOCKS.find(x => x.cards.includes(id)); return u ? u.stars : 0; },
     seeSlang(id) {
       if (JG.save.data.slang.includes(id)) return;
       JG.save.data.slang.push(id);
@@ -92,6 +111,12 @@
     PAPER: 'background: #F4E4BC; border: 3px solid #3B2A20; box-shadow: inset 0 -3px 0 #E0C998',
     GREEN: 'background: #5BB65F; border: 3px solid #3B2A20; box-shadow: inset 0 -6px 0 #3E8C42, inset 0 3px 0 #8FD493',
     BTN: 'padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; box-sizing: border-box',
+    // 쪽 넘기기: x부터 240px 폭 (◀ 72px, 쪽 번호, ▶ 72px). 누르면 data-act "pg:-1" / "pg:1"
+    pager(page, pages, x) {
+      const L = JG.look, btn = (dir, label, on, aria) => '<button type="button" data-act="pg:' + dir + '" aria-label="' + aria + '"' + (on ? '' : ' aria-disabled="true"')
+        + ' style="' + L.at(x + (dir < 0 ? 0 : 168), 714, 72, 72) + ' ' + L.BTN + '; ' + (on ? L.PAPER + '; background: #FFFFFF' : 'background: #CFC8B8; border: 3px solid #8B5A2B; color: #8B5A2B; cursor: default') + '; font-size: 32px">' + label + '</button>';
+      return btn(-1, '◀', page > 0, '이전 쪽') + '<div style="' + L.at(x + 72, 714, 96, 72) + ' text-align: center; line-height: 72px; color: #3B2A20">' + (page + 1) + '/' + pages + '쪽</div>' + btn(1, '▶', page < pages - 1, '다음 쪽');
+    },
     PULSE: 'outline: 3px solid #7BD389; outline-offset: 3px; animation: pulse 0.8s steps(2) infinite',
     at: (x, y, w, h) => 'position: absolute; left: ' + x + 'px; top: ' + y + 'px;' + (w != null ? ' width: ' + w + 'px;' : '') + (h != null ? ' height: ' + h + 'px;' : ''),
     // 버튼 안에도 넣을 수 있게 span으로 그린다

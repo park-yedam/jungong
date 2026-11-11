@@ -83,20 +83,33 @@
       + txt(12, 102, next ? '다음 칭호: ' + next.name + ' (별 ' + next.stars + '개)' : '가장 높은 칭호예요!', 'color: #5C3A1E');
   }
 
-  // 새 카드 칸: 처음 준공한 현장이면 보상 카드(보통 2장), 아니면 '이번에는 없어요'
+  // 새 카드를 못 받았을 때 안내: 다음에 열릴 카드까지 남은 별
+  function nextCardText() {
+    const u = JG.progress.nextUnlock();
+    return u ? '모은 별 ' + u.stars + '개가 되면 새 카드 ' + u.cards.length + '장이 열려요. (지금 ' + info.total + '개)' : '새 카드를 모두 모았어요!';
+  }
+  // 새 카드 칸: 처음 준공한 현장의 보상 카드(보통 2장)와 모은 별로 열린 카드, 없으면 '이번에는 없어요'
   function cardPanel() {
     const list = info.rewards || [];
     let h = txt(12, 12, list.length ? '새 카드 ' + list.length + '장 · 자재 창고로' : '새 카드', 'color: #B83E3C');
     if (!list.length) {
       return h + txt(12, 40, '이번에는 없어요', 'font-size: 32px; line-height: 32px')
         + '<p style="' + L.at(12, 82, 264) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">'
-        + (isScenario() ? '수업 현장은 연습용이라 카드와 별을 주지 않아요.' : isDaily() ? '데일리 현장은 카드 대신 별을 모아요.' : '현장을 처음 준공하면 확장 카드를 받아요.') + '</p>';
+        + (isScenario() ? '수업 현장은 연습용이라 카드와 별을 주지 않아요.' : nextCardText()) + '</p>';
     }
     const box = (id, x) => { const [sw, sh] = spriteSize(id); return '<div aria-hidden="true" style="' + L.at(x, 36, 66, 84) + ' box-sizing: border-box; ' + L.PAPER + '">' + L.sprite(id, Math.round((60 - sw) / 2), Math.round((78 - sh) / 2)) + '</div>'; };
     if (list.length === 1) {
       const c = JG.CARDS[list[0]], meta = '코인 ' + c.cost + ' · ' + (c.kind === 'crew' ? c.atk + '/' + c.hp : '공법') + ' · ' + c.text;
       return h + box(list[0], 12) + txt(90, 40, c.name, 'font-size: 32px; line-height: 32px; white-space: nowrap')
         + '<p style="' + L.at(90, 82, 186) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(meta) + '</p>';
+    }
+    if (list.length > 2) {   // 3장 이상 (현장 보상 + 모은 별로 열린 카드): 반 크기 그림을 한 줄로, 이름은 아래에
+      list.slice(0, 5).forEach((id, i) => {
+        const [sw, sh] = spriteSize(id);
+        h += '<div aria-hidden="true" style="' + L.at(12 + i * 50, 34, 42, 42) + ' box-sizing: border-box; ' + L.PAPER + '; overflow: hidden">'
+          + '<div style="' + L.at(Math.round((36 - sw / 2) / 2), Math.round((36 - sh / 2) / 2)) + ' transform: scale(0.5); transform-origin: 0 0">' + L.sprite(id, 0, 0) + '</div></div>';
+      });
+      return h + '<p style="' + L.at(12, 82, 264) + ' margin: 0; font-size: 14px; line-height: 18px; color: #5C3A1E; word-break: keep-all">' + esc(list.map(id => JG.CARDS[id].name).join(', ')) + '</p>';
     }
     // 2장이면 한 줄에 하나씩: 반 크기 그림 + 이름 + 능력치
     list.slice(0, 2).forEach((id, i) => {
@@ -140,6 +153,7 @@
       msg = '준공! ' + (isDaily() ? '오늘의 데일리 현장 ' : '') + E.eul(site().name) + ' ' + g.turn + '턴 만에 다 올렸어요. 별 ' + info.stars + '개.'
         + (isDaily() ? ' 결과 복사를 눌러 친구와 별을 비교해 보세요.' : '') + (isScenario() ? ' 수업 현장은 연습용이라 별이 기록되지 않아요.' : '')
         + ((info.rewards || []).length ? ' 새 카드 ' + E.eul(info.rewards.map(id => JG.CARDS[id].name).join(', ')) + ' 받았어요.' : '')
+        + ((info.starCards || []).length ? ' (모은 별 ' + info.total + '개로 열린 카드 포함)' : '')
         + (info.rank > info.rankBefore ? ' 칭호가 ' + E.ro(JG.RANKS[info.rank].name) + ' 올랐어요!' : '');
     },
     msg: () => msg,

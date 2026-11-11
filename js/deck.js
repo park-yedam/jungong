@@ -1,7 +1,8 @@
 // 자재 창고 (덱 편집): 가진 카드로 12장 덱을 짠다. 같은 카드는 최대 2장
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc, R = JG.RULES;
-  let deck = [], msg = '';
+  let deck = [], msg = '', page = 0;
+  const PER = 18;   // 한 쪽에 6칸 × 3줄
 
   const count = id => deck.filter(x => x === id).length;
   const saveDeck = () => { JG.save.data.deck = deck.slice(); JG.save.write(); };
@@ -31,6 +32,7 @@
   JG.screens.deck = {
     enter() {
       deck = (JG.save.data.deck || JG.STARTER_DECK).filter(id => JG.progress.owned().includes(id));
+      page = 0;
       msg = '자재 창고예요. +와 −로 덱 12장을 짜요. 같은 카드는 2장까지. 카드를 길게 누르면 풀이가 나와요.';
     },
     msg: () => msg,
@@ -43,6 +45,12 @@
         JG.app.show(JG.app.hub); return;
       }
       if (act === 'reset') { deck = JG.STARTER_DECK.slice(); saveDeck(); msg = '기본 덱 12장으로 되돌렸어요.'; return; }
+      if (act === 'pg') {   // 쪽 넘기기
+        const pages = Math.ceil(JG.progress.owned().length / PER);
+        page = Math.max(0, Math.min(pages - 1, page + n));
+        msg = '자재 창고 ' + (page + 1) + '/' + pages + '쪽이에요.';
+        return;
+      }
       const id = raw, c = JG.CARDS[id];
       if (act === 'plus') {
         if (count(id) >= R.maxCopies) { msg = JG.engine.eun(c.name) + ' ' + R.maxCopies + '장까지만 넣을 수 있어요.'; return; }
@@ -64,14 +72,18 @@
       h += '<div aria-hidden="true" style="' + L.at(0, 690, 1440, 12) + ' background: #8BC34A; box-shadow: inset 0 -6px 0 #6FA83A"></div>';
       h += '<div style="' + L.at(84, 24, 1272, 642) + ' box-sizing: border-box; ' + L.WOOD + '">';
       h += '<h1 style="' + L.at(24, 15) + ' margin: 0; font-size: 32px; line-height: 32px; font-weight: normal; color: #FFFFFF; ' + L.OUT2 + '">자재 창고</h1>';
-      h += '<div style="' + L.at(240, 24) + ' color: #FFE08A; ' + L.OUT1 + '">확장 카드(★) ' + exp + '/' + expAll + '장 보유 · 현장을 처음 준공하면 2장씩 받아요</div>';
+      const nu = JG.progress.nextUnlock();
+      h += '<div style="' + L.at(240, 24) + ' color: #FFE08A; ' + L.OUT1 + '">확장 카드(★) ' + exp + '/' + expAll + '장 · '
+        + (nu ? '다음 ' + nu.cards.length + '장: 모은 별 ' + nu.stars + '개 (지금 ' + JG.save.data.stars + '개)' : '모두 모았어요') + '</div>';
       h += '<div style="' + L.at(870, 12, 168, 42) + ' box-sizing: border-box; ' + L.PAPER + '; text-align: center; line-height: 36px; font-size: 16px; color: ' + (full ? '#23602A' : '#B83E3C') + '">덱 ' + deck.length + '/' + R.deckSize + '장</div>';
       h += '<button type="button" data-act="reset" style="' + L.at(1050, 12, 192, 42) + ' ' + L.BTN + '; ' + L.PAPER + '">기본 덱으로</button>';
       h += '<div style="' + L.at(15, 66, 1236, 555) + ' box-sizing: border-box; background: #6B4420; border: 3px solid #3B2A20">';
-      ids.forEach((id, i) => { h += tile(id, (i % 6) * 207, 9 + Math.floor(i / 6) * 182); });
+      const pages = Math.ceil(ids.length / PER);
+      ids.slice(page * PER, page * PER + PER).forEach((id, i) => { h += tile(id, (i % 6) * 207, 9 + Math.floor(i / 6) * 182); });
       h += '</div></div>';
       h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">' + JG.app.hubLabel() + '</button>';
-      h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
+      if (pages > 1) h += JG.look.pager(page, pages, 1116);
+      h += '<p style="' + L.at(348, 714, pages > 1 ? 756 : 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }
   };

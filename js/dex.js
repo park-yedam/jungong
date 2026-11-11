@@ -2,7 +2,8 @@
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc;
   const TABS = [['card', '카드'], ['prob', '현장 문제'], ['slang', '현장 말']];
-  let tab = 'card', msg = '';
+  let tab = 'card', msg = '', page = 0;
+  const PER = 18;   // 한 쪽에 6칸 × 3줄
 
   const d = () => JG.save.data;
   const counts = () => ({
@@ -23,7 +24,8 @@
     const o = kind === 'card' ? JG.CARDS[id] : JG.PROBLEMS[id];
     const seen = d().dex[kind === 'card' ? 'cards' : 'probs'].includes(id);
     if (!seen) {
-      const hint = kind === 'card' && o.expansion ? '현장을 처음 준공하면 받아요' : '대전에서 길게 눌러 보세요';
+      const stars = kind === 'card' ? JG.progress.unlockStarsOf(id) : 0;
+      const hint = stars ? '모은 별 ' + stars + '개에 열려요' : kind === 'card' && o.expansion ? '현장을 처음 준공하면 받아요' : '대전에서 길게 눌러 보세요';
       return '<div style="' + L.at(x, y, TW, TH) + ' box-sizing: border-box; background: #D9C08A; border: 3px dashed #8B5A2B; text-align: center">'
         + '<div style="' + L.at(0, 48, TW - 6) + ' font-size: 32px; line-height: 32px; color: #8B5A2B">???</div>'
         + '<div style="' + L.at(12, 100, TW - 30) + ' line-height: 20px; color: #5C3A1E; word-break: keep-all">' + esc(hint) + '</div></div>';
@@ -46,13 +48,14 @@
   }
 
   JG.screens.dex = {
-    enter() { tab = 'card'; msg = '도감이에요. 대전에서 카드나 문제를 길게 누르면 풀이가 쌓여요.'; },
+    enter() { tab = 'card'; page = 0; msg = '도감이에요. 대전에서 카드나 문제를 길게 누르면 풀이가 쌓여요.'; },
     msg: () => msg,
 
     click(act, n) {
       JG.sound.play('tick');
       if (act === 'title') { JG.app.show(JG.app.hub); return; }
-      if (act === 'tab') { tab = TABS[n][0]; const [a, b] = counts()[tab]; msg = TABS[n][1] + ' 도감: ' + b + '개 중 ' + a + '개를 모았어요.'; }
+      if (act === 'tab') { tab = TABS[n][0]; page = 0; const [a, b] = counts()[tab]; msg = TABS[n][1] + ' 도감: ' + b + '개 중 ' + a + '개를 모았어요.'; }
+      if (act === 'pg') { const pages = Math.ceil(counts()[tab][1] / PER); page = Math.max(0, Math.min(pages - 1, page + n)); msg = '도감 ' + (page + 1) + '/' + pages + '쪽이에요.'; }
     },
 
     render() {
@@ -73,11 +76,13 @@
         Object.keys(JG.SLANG).forEach((id, i) => { h += slangRow(id, i); });
       } else {
         const ids = Object.keys(tab === 'card' ? JG.CARDS : JG.PROBLEMS);
-        ids.forEach((id, i) => { h += tile(tab, id, (i % 6) * (TW + 12), Math.floor(i / 6) * (TH + 12)); });
+        ids.slice(page * PER, page * PER + PER).forEach((id, i) => { h += tile(tab, id, (i % 6) * (TW + 12), Math.floor(i / 6) * (TH + 12)); });
       }
+      const pages = tab === 'slang' ? 1 : Math.ceil(c[tab][1] / PER);
       h += '</div></div>';
       h += '<button type="button" data-act="title" style="' + L.at(84, 714, 240, 72) + ' ' + L.BTN + '; ' + L.PAPER + '">' + JG.app.hubLabel() + '</button>';
-      h += '<p style="' + L.at(348, 714, 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
+      if (pages > 1) h += L.pager(page, pages, 1116);
+      h += '<p style="' + L.at(348, 714, pages > 1 ? 756 : 1008, 72) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 66px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
       return h + '</div>';
     }
   };
