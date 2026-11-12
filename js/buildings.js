@@ -1,14 +1,20 @@
-// 우리 회사 단지 건물 도트 그림: 작은 격자(1칸 = 점 하나)에 그린 뒤 그림(PNG)으로 바꿔 둔다.
-// 화면에서는 2~3배로 키워 점이 또렷하게 보이게 한다 (image-rendering: pixelated). 브라우저에서만 쓴다.
+// 우리 회사 단지 건물 도트 그림: 작은 격자(1칸 = 점 하나)에 그린 뒤 그림(PNG)으로 바꿔 두고, 화면에서는 키워서 보여 준다.
+// 아늑한 마을 분위기로, 단지 전용 색(PALETTE)만 쓴다. 모든 건물이 같은 규칙(외곽선, 윗줄 빛, 오른쪽 그늘, 같은 창문)을 따른다.
 (() => {
   const JG = globalThis.JG;
-  const O = '#3B2A20';   // 외곽선
 
-  // 색을 밝게(+)/어둡게(-)
-  function shade(hex, amt) {
-    const n = parseInt(hex.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(v + amt * 255)));
-    return '#' + [f(n >> 16), f((n >> 8) & 255), f(n & 255)].map(v => v.toString(16).padStart(2, '0')).join('');
-  }
+  // 단지 전용 색 13가지 (건물·시설 모두 이것만)
+  const C = {
+    O: '#3B2A20', white: '#FBF6EA', cream: '#F1E4C8', sand: '#D9C4A0', sandD: '#B79E7A',
+    terra: '#B4583E', terraD: '#8A4130', slate: '#6F8B94', slateD: '#4F6870',
+    win: '#F6D27A', wood: '#8B5A2B', sage: '#7A9A62', glass: '#A9C6CF'
+  };
+  // 재료: [바탕, 윗줄 빛, 오른쪽 그늘]
+  const MAT = {
+    white: [C.white, C.white, C.cream], cream: [C.cream, C.white, C.sand], sand: [C.sand, C.cream, C.sandD],
+    terra: [C.terra, C.terra, C.terraD], slate: [C.slate, C.glass, C.slateD], glass: [C.glass, C.white, C.slate],
+    wood: [C.wood, C.wood, C.terraD], sage: [C.sage, C.sage, C.slateD], dark: [C.slateD, C.slate, C.O]
+  };
 
   // 그림판: w × h 칸. 아래쪽이 땅
   function Pic(w, h) {
@@ -18,207 +24,178 @@
       w, h, g,
       px(x, y, c) { set(x, y, c); return p; },
       fill(x, y, ww, hh, c) { for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) set(x + i, y + j, c); return p; },
-      // 외곽선 상자: 윗줄은 밝게, 오른쪽 줄은 어둡게 (도트 그림의 빛과 그늘)
-      box(x, y, ww, hh, c) {
-        p.fill(x, y, ww, hh, O).fill(x + 1, y + 1, ww - 2, hh - 2, c);
-        p.fill(x + 1, y + 1, ww - 2, 1, shade(c, 0.12)).fill(x + ww - 2, y + 2, 1, hh - 3, shade(c, -0.12));
+      // 외곽선 상자 (재료 이름): 윗줄은 밝게, 오른쪽 줄은 어둡게
+      box(x, y, ww, hh, m) {
+        const [base, hi, lo] = MAT[m];
+        p.fill(x, y, ww, hh, C.O).fill(x + 1, y + 1, ww - 2, hh - 2, base);
+        if (hh > 3) p.fill(x + 1, y + 1, ww - 2, 1, hi);
+        if (ww > 3) p.fill(x + ww - 2, y + 2, 1, hh - 3, lo);
         return p;
       },
-      // 창문: 외곽선, 유리, 왼쪽 위 반짝임, 넓으면 가운데 창살
-      win(x, y, ww, hh, c) {
-        c = c || '#FFE08A';
-        p.fill(x, y, ww, hh, O).fill(x + 1, y + 1, ww - 2, hh - 2, c).px(x + 1, y + 1, shade(c, 0.25));
-        if (ww >= 6) p.fill(x + Math.floor(ww / 2), y + 1, 1, hh - 2, shade(c, -0.3));
-        if (hh >= 6) p.fill(x + 1, y + Math.floor(hh / 2), ww - 2, 1, shade(c, -0.3));
-        return p;
-      },
-      // 벽돌 무늬 (줄눈이 엇갈림)
-      bricks(x, y, ww, hh, c, mortar) {
-        for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) {
-          const row = Math.floor(j / 2), lineY = j % 2 === 1, lineX = (i + (row % 2) * 2) % 4 === 0;
-          set(x + i, y + j, lineY || lineX ? mortar : (i + j) % 7 === 0 ? shade(c, 0.08) : c);
+      // 창문: 모든 건물이 같은 창 (외곽선 + 불빛 + 왼쪽 위 반짝임)
+      win(x, y, ww, hh) { p.fill(x, y, ww || 4, hh || 5, C.O).fill(x + 1, y + 1, (ww || 4) - 2, (hh || 5) - 2, C.win).px(x + 1, y + 1, C.white); return p; },
+      wins(xs, ys, ww, hh) { xs.forEach(x => ys.forEach(y => p.win(x, y, ww, hh))); return p; },
+      door(x, y, ww, hh) { p.box(x, y, ww || 5, hh || 8, 'wood'); return p; },
+      // 박공 지붕: 가운데 cx, 처마 높이 eave(아래 끝 줄), 처마 폭 ww. 한 줄 오를 때마다 양쪽 1칸씩 좁아짐
+      gable(cx, eave, ww, m) {
+        const [base, , lo] = MAT[m];
+        for (let k = 0; ; k++) {
+          const half = Math.floor(ww / 2) - k, y = eave - k;
+          if (half < 1) break;
+          p.fill(cx - half, y, half * 2, 1, k === 0 ? lo : base).px(cx - half, y, C.O).px(cx + half - 1, y, C.O);
+          if (half === 1 || k === Math.floor(ww / 2) - 1) p.fill(cx - half, y - 1, half * 2, 1, C.O);
         }
+        p.fill(cx - Math.floor(ww / 2), eave + 1, Math.floor(ww / 2) * 2, 1, C.O);
         return p;
       },
-      // 가로 줄무늬 (셔터 문 등)
-      lines(x, y, ww, hh, c, every) { for (let j = 0; j < hh; j++) p.fill(x, y + j, ww, 1, j % every === every - 1 ? shade(c, -0.22) : c); return p; },
-      // 계단식 세모 지붕: 가운데 cx, 밑줄 y에서 위로, 한 단 rh칸, 단마다 폭 ws
-      roof(cx, y, ws, rh, c) {
-        ws.forEach((ww, k) => {
-          const x = cx - Math.floor(ww / 2), yy = y - (k + 1) * rh;
-          p.fill(x, yy, ww, rh + 1, O).fill(x + 1, yy + 1, ww - 2, rh - 1, k % 2 ? shade(c, -0.1) : c);
-        });
-        return p;
-      },
-      door(x, y, ww, hh, c) { p.box(x, y, ww, hh, c || '#8B5A2B').px(x + ww - 3, y + Math.floor(hh / 2), '#F7C948'); return p; }
+      // 셔터 문: 가로 줄
+      shutter(x, y, ww, hh, m) { const [base, , lo] = MAT[m]; p.fill(x, y, ww, hh, C.O); for (let j = 1; j < hh; j++) p.fill(x + 1, y + j, ww - 2, 1, j % 3 === 0 ? lo : base); return p; }
     };
     return p;
   }
 
-  // ---------- 건물 17종 (현장 5 + 데일리 12) ----------
+  // ---------- 건물 17종 (현장 5 + 데일리 12): 실루엣과 표시 하나로 알아보게 ----------
   const DESIGNS = {
-    house() {   // 뾰족 지붕 2층 집
-      const p = Pic(40, 38), G = 38;
-      p.box(30, 4, 5, 10, '#9AA0A6');
-      p.roof(20, 20, [40, 34, 28, 22, 16, 10], 3, '#C0603C');
-      p.box(3, 19, 34, G - 19, '#F4E4BC');
-      p.win(7, 22, 7, 6).win(26, 22, 7, 6).win(7, 30, 7, 6).win(26, 30, 7, 6);
-      p.door(17, 28, 6, 10);
+    house() {   // 박공지붕 집
+      const p = Pic(36, 32);
+      p.box(25, 2, 4, 9, 'slate');
+      p.gable(18, 13, 36, 'terra');
+      p.box(4, 14, 28, 18, 'cream').wins([8, 23], [17], 5, 5).door(15, 24, 6, 8);
       return p;
     },
-    retail() {   // 1층 가게(유리·줄무늬 차양·간판) + 위층 사무실
-      const p = Pic(48, 50), G = 50;
-      p.box(0, 0, 48, 3, '#8E6440').box(1, 2, 46, G - 2, '#E8D2A0');
-      [5, 16, 27, 38].forEach(x => p.win(x, 6, 6, 7).win(x, 17, 6, 7));
-      p.box(8, 27, 32, 5, '#5B8DEF');
-      for (let i = 10; i < 38; i += 3) p.px(i, 29, '#FFFFFF');   // 간판 글자 점
-      for (let i = 0; i < 48; i++) p.fill(i, 33, 1, 4, Math.floor(i / 4) % 2 ? '#FFFFFF' : '#E35D5B');
-      p.fill(0, 33, 48, 1, O); for (let i = 0; i < 48; i += 4) p.px(i, 37, O);
-      p.box(3, 38, 30, G - 38, '#9CC7DC').fill(13, 39, 1, G - 39, O).fill(23, 39, 1, G - 39, O).px(5, 40, '#DDF0FA').px(15, 40, '#DDF0FA');
-      p.door(36, 38, 9, G - 38);
+    retail() {   // 1층 가게(유리창·차양) + 위층
+      const p = Pic(40, 42);
+      p.box(1, 0, 38, 4, 'terra').box(2, 3, 36, 39, 'sand');
+      p.wins([7, 18, 29], [7, 16], 5, 6);
+      p.box(1, 24, 38, 4, 'terra');
+      p.box(5, 29, 22, 13, 'glass').door(29, 31, 6, 11);
       return p;
     },
-    apart() {   // 층마다 발코니 난간이 있는 5층 아파트
-      const p = Pic(48, 62), G = 62;
-      p.box(0, 0, 48, 3, '#3E8C42').box(1, 2, 46, G - 2, '#F4F1E8');
+    apart() {   // 5층 아파트, 층마다 난간
+      const p = Pic(40, 56);
+      p.box(1, 0, 38, 4, 'slate').box(2, 3, 36, 53, 'cream');
       for (let f = 0; f < 5; f++) {
-        const y = 5 + f * 11;
-        [5, 21, 37].forEach(x => p.win(x, y, 7, 6));
-        if (f < 4) { p.fill(3, y + 7, 42, 1, O).fill(3, y + 8, 42, 2, '#B8BEC4'); for (let i = 4; i < 45; i += 3) p.px(i, y + 8, O); }
+        const y = 6 + f * 9;
+        p.wins([7, 18, 29], [y], 5, 5);
+        if (f < 4) p.fill(5, y + 6, 30, 1, C.slate);
       }
-      p.door(20, G - 9, 8, 9);
+      p.door(17, 48, 6, 8);
       return p;
     },
-    warehouse() {   // 넓고 낮은 물류창고, 셔터 문 3개
-      const p = Pic(64, 32), G = 32;
-      p.box(0, 0, 64, 5, '#5B8DEF');
-      p.box(2, 4, 60, G - 4, '#B8C2CC');
-      for (let i = 6; i < 60; i += 5) p.fill(i, 6, 1, 6, shade('#B8C2CC', -0.1));
-      p.box(5, 7, 54, 4, '#9CC7DC');
-      [6, 25, 44].forEach(x => { p.fill(x, 14, 14, G - 14, O); p.lines(x + 1, 15, 12, G - 15, '#9AA0A6', 3); });
+    warehouse() {   // 넓고 낮은 물류창고, 셔터 문 둘
+      const p = Pic(56, 28);
+      p.box(0, 0, 56, 4, 'slate').box(2, 3, 52, 25, 'sand');
+      p.fill(6, 7, 44, 3, C.O).fill(7, 8, 42, 1, C.glass);
+      p.shutter(7, 13, 16, 15, 'slate').shutter(33, 13, 16, 15, 'slate');
       return p;
     },
-    office() {   // 유리 커튼월 오피스, 옥상 안테나
-      const p = Pic(40, 64), G = 64;
-      p.fill(19, 0, 2, 6, O).px(19, 0, '#E35D5B');
-      p.box(4, 6, 32, G - 6, '#6FA8DC');
-      for (let y = 8; y < G - 1; y++) for (let x = 5; x < 35; x++) {
-        if ((x - 5) % 5 === 0 || (y - 8) % 5 === 0) p.px(x, y, '#3E5C8A');
-        else if ((x + y) % 11 === 0 || (x + y) % 11 === 1) p.px(x, y, '#BFE0F7');   // 유리 반사
-      }
-      p.box(15, G - 9, 10, 9, '#3E5C8A');
+    office() {   // 유리 오피스 타워
+      const p = Pic(32, 58);
+      p.fill(15, 0, 2, 5, C.slateD);
+      p.box(3, 4, 26, 54, 'glass');
+      for (let y = 9; y < 50; y += 5) p.fill(4, y, 24, 1, C.slate);
+      for (let x = 9; x < 28; x += 6) p.fill(x, 5, 1, 45, C.slate);
+      p.box(11, 50, 10, 8, 'dark');
       return p;
     },
 
-    school() {   // 가운데 시계탑, 넓은 3층
-      const p = Pic(48, 50), G = 50;
-      p.roof(24, 6, [16, 10, 4], 2, '#C0603C');
-      p.box(17, 5, 14, 14, '#F4E4BC').box(20, 7, 8, 8, '#FFFFFF').fill(23, 9, 1, 3, O).fill(23, 11, 3, 1, O);
-      p.box(0, 17, 48, 3, '#C0603C').box(1, 19, 46, G - 19, '#F4E4BC');
-      [4, 12, 30, 38].forEach(x => p.win(x, 22, 6, 7).win(x, 32, 6, 7));
-      p.win(4, 42, 6, 6).win(38, 42, 6, 6).door(20, 40, 8, 10);
+    school() {   // 가운데 시계탑
+      const p = Pic(44, 40);
+      p.gable(22, 7, 14, 'terra');
+      p.box(15, 7, 14, 12, 'cream').box(19, 9, 6, 6, 'white').px(21, 11, C.O).px(22, 11, C.O).px(21, 12, C.O);
+      p.box(0, 16, 44, 4, 'terra').box(2, 19, 40, 21, 'cream');
+      p.wins([6, 13, 26, 33], [22], 5, 5).wins([6, 33], [31], 5, 5).door(19, 31, 6, 9);
       return p;
     },
-    hospital() {   // 하얀 건물, 빨간 십자
-      const p = Pic(44, 48), G = 48;
-      p.box(2, 0, 40, G, '#FFFFFF');
-      p.fill(19, 3, 6, 14, O).fill(15, 7, 14, 6, O).fill(20, 4, 4, 12, '#E35D5B').fill(16, 8, 12, 4, '#E35D5B');
-      [5, 34].forEach(x => p.win(x, 4, 5, 6, '#9CC7DC').win(x, 13, 5, 6, '#9CC7DC'));
-      [5, 14, 25, 34].forEach(x => p.win(x, 23, 5, 6, '#9CC7DC'));
-      p.box(12, 32, 20, 4, '#5B8DEF').box(15, 36, 14, G - 36, '#9CC7DC').fill(22, 37, 1, G - 37, O);
+    hospital() {   // 하얀 건물, 십자 표시
+      const p = Pic(38, 44);
+      p.box(1, 0, 36, 4, 'slate').box(2, 3, 34, 41, 'white');
+      p.fill(17, 6, 4, 10, C.terra).fill(14, 9, 10, 4, C.terra);
+      p.wins([6, 28], [7], 4, 5).wins([6, 13, 21, 28], [20, 28], 4, 5);
+      p.box(13, 36, 12, 8, 'glass');
       return p;
     },
-    library() {   // 박공 지붕과 기둥 (고전 양식)
-      const p = Pic(48, 40), G = 40;
-      p.roof(24, 12, [48, 38, 28, 18, 8], 2, '#B8BEC4');
-      p.box(2, 11, 44, 5, '#E8E3D5');
-      [5, 14, 23, 32, 41].forEach(x => { p.fill(x - 1, 15, 4, 20, O).fill(x, 16, 2, 19, '#F4F1E8').fill(x + 1, 16, 1, 19, '#D9D2C0'); });
-      p.door(20, 22, 8, 13, '#5C3A1E');
-      p.box(0, 34, 48, 3, '#B8BEC4').box(0, 36, 48, 4, '#9AA0A6');
+    library() {   // 박공 지붕과 기둥
+      const p = Pic(44, 34);
+      p.gable(22, 9, 44, 'sand');
+      p.box(2, 9, 40, 4, 'sand');
+      [5, 13, 27, 35].forEach(x => p.box(x, 13, 4, 16, 'cream'));
+      p.door(19, 18, 6, 11);
+      p.box(0, 28, 44, 3, 'sand').box(0, 30, 44, 4, 'sand');
       return p;
     },
-    daycare() {   // 알록달록 낮은 2층, 세모 지붕 둘
-      const p = Pic(48, 32), G = 32;
-      p.roof(12, 11, [24, 18, 12, 6], 2, '#E35D5B').roof(36, 11, [24, 18, 12, 6], 2, '#5B8DEF');
-      p.box(0, 10, 48, G - 10, '#F7C948');
-      p.win(4, 13, 6, 6, '#FFFFFF').win(14, 13, 6, 6, '#7BD389').win(28, 13, 6, 6, '#7BD389').win(38, 13, 6, 6, '#FFFFFF');
-      ['#E35D5B', '#F2994A', '#F7C948', '#7BD389', '#5B8DEF', '#9C7BB8'].forEach((c, k) => p.fill(1 + k * 8, 21, 8, 2, c));
-      p.door(20, 23, 8, 9, '#E35D5B');
+    daycare() {   // 낮은 2층, 작은 지붕 둘
+      const p = Pic(40, 28);
+      p.gable(10, 9, 20, 'terra').gable(30, 9, 20, 'sage');
+      p.box(1, 10, 38, 18, 'cream').wins([6, 29], [14], 5, 5).door(17, 19, 6, 9);
       return p;
     },
-    gym() {   // 둥근 지붕의 넓고 낮은 체육관
-      const p = Pic(58, 32), G = 32;
-      p.roof(29, 10, [58, 52, 42, 28, 12], 2, '#3E8C42');
-      p.box(2, 9, 54, G - 9, '#E8D2A0');
-      p.box(5, 12, 48, 7, '#9CC7DC'); for (let x = 11; x < 52; x += 6) p.fill(x, 13, 1, 5, O);
-      p.door(24, 22, 10, 10);
+    gym() {   // 둥근 지붕의 넓은 체육관
+      const p = Pic(52, 28);
+      [[4, 44], [2, 48], [0, 52]].forEach(([y, w], k) => p.fill(26 - w / 2, y + k * 2, w, 3, C.O).fill(27 - w / 2, y + k * 2 + 1, w - 2, 1, k === 2 ? C.slateD : C.sage));
+      p.box(2, 10, 48, 18, 'sand');
+      p.fill(6, 13, 40, 5, C.O).fill(7, 14, 38, 3, C.glass); for (let x = 12; x < 45; x += 6) p.fill(x, 14, 1, 3, C.O);
+      p.door(23, 20, 6, 8);
       return p;
     },
-    center() {   // 국기 게양대, 파란 간판의 3층 관공서
-      const p = Pic(46, 50), G = 50;
-      p.fill(41, 0, 1, G, '#7E858C').box(34, 1, 8, 6, '#FFFFFF').fill(36, 3, 2, 2, '#E35D5B').fill(38, 3, 2, 2, '#5B8DEF');
-      p.box(0, 14, 38, G - 14, '#E8E3D5');
-      p.box(6, 17, 26, 5, '#3E5C8A'); for (let i = 8; i < 30; i += 3) p.px(i, 19, '#FFFFFF');
-      [3, 12, 21, 30].forEach(x => p.win(x, 25, 5, 6).win(x, 34, 5, 6));
-      p.box(14, 41, 10, G - 41, '#9CC7DC').fill(19, 42, 1, G - 42, O);
+    center() {   // 깃대 있는 주민센터
+      const p = Pic(40, 42);
+      p.fill(36, 0, 1, 42, C.slateD).box(31, 1, 6, 5, 'terra');
+      p.box(0, 12, 33, 30, 'white');
+      p.box(6, 15, 21, 4, 'slate');
+      p.wins([5, 14, 23], [22], 5, 5).box(13, 33, 7, 9, 'glass');
       return p;
     },
-    officetel() {   // 좁고 높은 6층
-      const p = Pic(30, 52), G = 52;
-      p.box(0, 0, 30, 3, '#5C3A1E').box(1, 2, 28, G - 2, '#9AA0A6');
-      for (let r = 0; r < 6; r++) [4, 12, 20].forEach(x => p.win(x, 5 + r * 7, 5, 5));
-      p.door(11, G - 8, 8, 8, '#3E5C8A');
+    officetel() {   // 좁고 높은 오피스텔
+      const p = Pic(28, 50);
+      p.box(1, 0, 26, 4, 'dark').box(2, 3, 24, 47, 'sand');
+      for (let r = 0; r < 6; r++) p.wins([7, 16], [6 + r * 7], 5, 5);
+      p.door(11, 43, 6, 7);
       return p;
     },
-    lab() {   // 띠창과 옥상 설비가 있는 연구동
-      const p = Pic(46, 40), G = 40;
-      p.box(6, 0, 10, 6, '#B8BEC4').box(30, 1, 8, 5, '#B8BEC4').fill(32, 0, 4, 1, O);
-      p.box(1, 5, 44, G - 5, '#F4F1E8');
-      [9, 19].forEach(y => { p.box(4, y, 38, 6, '#5B8DEF'); for (let x = 9; x < 42; x += 5) p.fill(x, y + 1, 1, 4, O); p.px(5, y + 1, '#BFE0F7'); });
-      p.box(18, 30, 10, G - 30, '#9CC7DC');
+    lab() {   // 띠창과 옥상 설비
+      const p = Pic(42, 34);
+      p.box(6, 0, 9, 5, 'slate');
+      p.box(1, 4, 40, 30, 'white');
+      p.fill(5, 8, 32, 5, C.O).fill(6, 9, 30, 3, C.glass);
+      p.fill(5, 16, 32, 5, C.O).fill(6, 17, 30, 3, C.glass);
+      p.box(17, 25, 8, 9, 'glass');
       return p;
     },
-    mall() {   // 층마다 다른 색 간판
-      const p = Pic(48, 46), G = 46;
-      p.box(0, 0, 48, G, '#E8D2A0');
-      ['#E35D5B', '#5B8DEF', '#7BD389', '#F7C948'].forEach((c, k) => {
-        const y = 3 + k * 9;
-        p.box(3, y, 42, 5, c); for (let i = 6; i < 42; i += 4) p.px(i, y + 2, '#FFFFFF');
-        p.win(4, y + 5, 5, 3, '#9CC7DC').win(39, y + 5, 5, 3, '#9CC7DC');
-      });
-      p.box(3, 39, 42, G - 39, '#9CC7DC').fill(24, 40, 1, G - 40, O);
+    mall() {   // 간판 하나, 넓은 상가
+      const p = Pic(44, 40);
+      p.box(0, 0, 44, 4, 'slate').box(1, 3, 42, 37, 'cream');
+      p.box(10, 6, 24, 5, 'terra');
+      p.wins([5, 14, 25, 34], [14, 22], 5, 5);
+      p.box(4, 30, 36, 10, 'glass').fill(21, 31, 1, 9, C.slate);
       return p;
     },
-    factory() {   // 톱니 지붕과 굴뚝, 연기
-      const p = Pic(50, 48), G = 48;
-      p.fill(41, 2, 3, 3, '#DDE6E8').fill(44, 0, 4, 3, '#DDE6E8').fill(38, 5, 3, 2, '#DDE6E8');
-      p.box(37, 7, 7, 22, '#B5533A'); for (let y = 9; y < 28; y += 3) p.fill(38, y, 5, 1, shade('#B5533A', -0.15));
-      for (let k = 0; k < 3; k++) for (let j = 0; j < 8; j++) {   // 톱니: 한쪽은 지붕, 한쪽은 유리
-        const x = 1 + k * 12;
-        p.fill(x + j, 28 - j, 1, j + 1, O).fill(x + j + 1, 28 - j + 1, 1, j, '#9AA0A6');
-        if (j < 7) p.fill(x + 9, 21 + j, 3, 1, '#5B8DEF');
+    factory() {   // 톱니 지붕과 굴뚝
+      const p = Pic(46, 40);
+      p.fill(37, 0, 3, 2, C.white).fill(40, 2, 3, 2, C.white);
+      p.box(35, 4, 6, 18, 'terra');
+      for (let k = 0; k < 3; k++) for (let j = 0; j < 7; j++) {
+        const x = 1 + k * 11;
+        p.fill(x + j, 21 - j, 1, j + 1, C.O).fill(x + j + 1, 22 - j, 1, j, C.slate);
+        if (j < 6) p.fill(x + 8, 16 + j, 2, 1, C.glass);
       }
-      p.box(0, 28, 46, G - 28, '#B8C2CC');
-      p.fill(4, 34, 14, G - 34, O).lines(5, 35, 12, G - 35, '#9AA0A6', 3);
-      p.win(24, 33, 6, 5, '#9CC7DC').win(34, 33, 6, 5, '#9CC7DC');
+      p.box(0, 22, 44, 18, 'sand');
+      p.shutter(4, 27, 13, 13, 'slate').wins([24, 33], [27], 5, 5);
       return p;
     },
-    fire() {   // 빨간 소방서, 차고 문 둘, 망루
-      const p = Pic(48, 46), G = 46;
-      p.box(34, 0, 12, 20, '#E35D5B').win(37, 3, 6, 5, '#FFFFFF');
-      p.box(0, 16, 48, G - 16, '#E35D5B');
-      p.box(3, 19, 30, 5, '#FFFFFF'); for (let i = 6; i < 31; i += 3) p.px(i, 21, '#E35D5B');
-      [3, 18].forEach(x => { p.fill(x, 26, 14, G - 26, O); p.lines(x + 1, 27, 12, G - 27, '#F4F1E8', 3); });
-      p.win(37, 28, 7, 6);
+    fire() {   // 소방서: 망루와 차고 문 둘
+      const p = Pic(42, 38);
+      p.box(31, 0, 10, 16, 'terra').win(34, 3, 4, 5);
+      p.box(0, 12, 42, 26, 'terra');
+      p.box(4, 15, 24, 4, 'cream');
+      p.shutter(4, 22, 11, 16, 'white').shutter(17, 22, 11, 16, 'white').win(32, 23, 5, 5);
       return p;
     },
-    dorm() {   // 벽돌색 4층, 작은 창 여러 개
-      const p = Pic(44, 46), G = 46;
-      p.box(0, 0, 44, 3, '#5C3A1E');
-      p.fill(1, 2, 42, G - 2, O).bricks(2, 3, 40, G - 4, '#B4533A', '#8B3A1E');
-      for (let r = 0; r < 3; r++) [4, 12, 20, 28, 36].forEach(x => p.win(x, 6 + r * 9, 5, 6));
-      [4, 12, 28, 36].forEach(x => p.win(x, 34, 5, 6));
-      p.door(19, 36, 7, 10);
+    dorm() {   // 기숙사: 창이 많은 4층
+      const p = Pic(38, 42);
+      p.box(1, 0, 36, 4, 'dark').box(2, 3, 34, 39, 'terra');
+      for (let r = 0; r < 3; r++) p.wins([6, 15, 24, 31].slice(0, 4), [6 + r * 8], 4, 5);
+      p.wins([6, 27], [31], 4, 5).door(16, 33, 6, 9);
       return p;
     }
   };
@@ -231,8 +208,9 @@
     const cv = document.createElement('canvas');
     cv.width = p.w; cv.height = p.h;
     const ctx = cv.getContext('2d');
-    p.g.forEach((row, y) => row.forEach((c, x) => { if (c) { ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); } }));
-    return (cache[look] = { src: cv.toDataURL('image/png'), w: p.w, h: p.h });
+    const colors = new Set();
+    p.g.forEach((row, y) => row.forEach((c, x) => { if (c) { colors.add(c); ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1); } }));
+    return (cache[look] = { src: cv.toDataURL('image/png'), w: p.w, h: p.h, colors: [...colors] });
   };
   // 단지에 놓을 건물 그림 HTML: 가운데 cx, 땅 높이 ground, 점 하나 크기 dot(px)
   JG.buildingHtml = (look, cx, ground, dot) => {
@@ -240,4 +218,5 @@
     return '<img alt="" aria-hidden="true" src="' + b.src + '" style="position: absolute; left: ' + Math.round(cx - w / 2) + 'px; top: ' + (ground - h) + 'px; width: ' + w + 'px; height: ' + h + 'px; image-rendering: pixelated">';
   };
   JG.BUILDING_LOOKS = Object.keys(DESIGNS);
+  JG.TOWN_COLORS = C;   // 단지 시설 그림도 같은 색을 쓴다
 })();
