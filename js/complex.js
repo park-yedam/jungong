@@ -40,30 +40,15 @@
     return slotBtn('dlot:' + k, 40 + (5 + k) * SLOT, aria, art + plateHtml(esc(b.name), got ? stars(got.stars) : '데일리로 모아요'));
   }
 
-  // 앞줄 시설: 그림 + 이름판
-  function facility(act, x, art, name, sub, aria, dim) {
-    return '<button type="button" data-act="' + act + '" aria-label="' + esc(aria) + '" style="' + L.at(x, 628, 260, 170) + ' ' + L.BTN + '; background: transparent; border: 0' + (dim ? '; opacity: 0.6' : '') + '">'
-      + art
-      + '<span style="' + L.at(10, 108, 240, 58) + ' display: block; box-sizing: border-box; ' + L.PAPER + '; text-align: center; font-size: 16px; line-height: 22px; padding-top: 4px">'
-      + esc(name) + '<br><span style="color: #5C3A1E">' + esc(sub) + '</span></span></button>';
+  // 앞줄 시설 (예전의 70% 크기, 182×119): 도트 그림(점 3px) + 작은 이름판. extra: 그림 위에 얹을 것 (달력 날짜)
+  function facility(act, cx, look, name, sub, aria, dim, extra) {
+    return '<button type="button" data-act="' + act + '" aria-label="' + esc(aria) + '" style="' + L.at(cx - 91, 644, 182, 140) + ' ' + L.BTN + '; background: transparent; border: 0' + (dim ? '; opacity: 0.55' : '') + '">'
+      + JG.buildingHtml(look, 91, 78, 3) + (extra || '')
+      + '<span style="' + L.at(11, 84, 160, 44) + ' display: block; box-sizing: border-box; background: #F1E4C8; border: 3px solid #3B2A20; text-align: center; padding-top: 2px; white-space: nowrap">'
+      + '<span style="display: block; font-size: 16px; line-height: 19px">' + esc(name) + '</span><span style="display: block; font-size: 14px; line-height: 16px; color: #8A4130">' + esc(sub) + '</span></span></button>';
   }
-
-  const ART = {
-    board: span(60, 30, 12, 80, 'background: #6B4420; border: 3px solid #3B2A20') + span(188, 30, 12, 80, 'background: #6B4420; border: 3px solid #3B2A20')
-      + span(40, 6, 180, 72, L.WOOD)
-      + [58, 112, 166].map((px, k) => span(px, 18 + (k % 2) * 6, 40, 46, 'background: #F4E4BC; border: 3px solid #3B2A20') + span(px + 15, 14 + (k % 2) * 6, 10, 10, 'background: #E35D5B; border: 2px solid #3B2A20')).join(''),
-    shed: span(54, 24, 152, 12, 'background: #8E6440; border: 3px solid #3B2A20') + span(42, 34, 176, 14, 'background: #8E6440; border: 3px solid #3B2A20')
-      + span(54, 46, 152, 62, 'background: #B8BEC4; border: 3px solid #3B2A20') + span(102, 60, 56, 48, 'background: #5C3A1E; border: 3px solid #3B2A20')
-      + span(66, 58, 28, 20, 'background: #F4E4BC; border: 3px solid #3B2A20') + span(166, 58, 28, 20, 'background: #F4E4BC; border: 3px solid #3B2A20'),
-    shelf: span(70, 4, 120, 104, 'background: #8B5A2B; border: 3px solid #3B2A20')
-      + [0, 1, 2].map(r => span(78, 12 + r * 32, 104, 4, 'background: #5C3A1E') + ['#E07A3F', '#5B8DEF', '#F7C948', '#5BB65F', '#E35D5B', '#9AA0A6', '#B5835A'].map((c, k) => span(80 + k * 14, 18 + r * 32 - (k % 3 === 0 ? 2 : 0), 12, 22 + (k % 3 === 0 ? 2 : 0), 'background: ' + c + '; border: 2px solid #3B2A20')).join('')).join('')
-  };
-  function calendarArt(day, locked) {
-    return span(118, 66, 24, 42, 'background: #6B4420; border: 3px solid #3B2A20')
-      + span(70, 2, 120, 72, 'background: ' + (locked ? '#CFC8B8' : '#FFFFFF') + '; border: 3px solid #3B2A20')
-      + span(70, 2, 120, 22, 'background: ' + (locked ? '#8E8576' : '#E35D5B') + '; border: 3px solid #3B2A20')
-      + '<span aria-hidden="true" style="' + L.at(70, 26, 120) + ' display: block; text-align: center; font-size: 32px; line-height: 40px; color: ' + (locked ? '#8E8576' : '#3B2A20') + '">' + (locked ? '?' : day) + '</span>';
-  }
+  // 달력 그림 위에 오늘 날짜 (잠겨 있으면 ?)
+  const dayText = (day, locked) => '<span aria-hidden="true" style="' + L.at(46, 34, 90) + ' display: block; text-align: center; font-size: 24px; line-height: 30px; color: #3B2A20">' + (locked ? '?' : day) + '</span>';
 
   // 길을 오가는 작업팀 (가진 작업팀, 장비·가설물 빼고 최대 6명)
   function walkers() {
@@ -145,12 +130,13 @@
       h += walkers();
       h += L.sprite(JG.bossSprite(), 1330, 480);   // 길 끝에 선 현장소장 (용어 OX를 다 맞히면 금색 안전모)
       // 앞줄 시설
-      h += facility('board', 70, ART.board, '현장 게시판', '현장 고르기', '현장 게시판. 현장 고르기');
-      h += facility('shed', 410, ART.shed, '자재 창고', '덱 ' + ((d.deck && d.deck.length) || 12) + '장', '자재 창고. 덱 편집');
-      h += facility('shelf', 750, ART.shelf, '도감 책장', '카드 ' + d.dex.cards.length + '/' + Object.keys(JG.CARDS).length, '도감 책장. 도감 보기');
-      h += facility('daily', 1090, calendarArt(Number(today.dateKey.slice(8)), !dailyOpen), '데일리 현장',
-        dailyOpen ? today.name + ' · ' + (dBest ? '★'.repeat(dBest) + '☆'.repeat(3 - dBest) : '오늘 아직') : '5번 현장 준공 후 열림',
-        dailyOpen ? '데일리 현장. 오늘은 ' + today.name + (dBest ? ', 최고 별 ' + dBest + '개' : ', 아직 안 함') : '데일리 현장 잠김. 5번 현장을 준공하면 열려요', !dailyOpen);
+      h += facility('board', 180, 'fac_board', '현장 게시판', '현장 고르기', '현장 게시판. 현장 고르기');
+      h += facility('shed', 540, 'fac_shed', '자재 창고', '덱 ' + ((d.deck && d.deck.length) || 12) + '장', '자재 창고. 덱 편집');
+      h += facility('shelf', 900, 'fac_shelf', '도감 책장', '카드 ' + d.dex.cards.length + '/' + Object.keys(JG.CARDS).length, '도감 책장. 도감 보기');
+      h += facility('daily', 1260, 'fac_daily', '데일리 현장',
+        dailyOpen ? today.name + ' · ' + (dBest ? '★'.repeat(dBest) + '☆'.repeat(3 - dBest) : '오늘 아직') : '5번 현장 준공 후',
+        dailyOpen ? '데일리 현장. 오늘은 ' + today.name + (dBest ? ', 최고 별 ' + dBest + '개' : ', 아직 안 함') : '데일리 현장 잠김. 5번 현장을 준공하면 열려요', !dailyOpen,
+        dayText(Number(today.dateKey.slice(8)), !dailyOpen));
       // 위쪽: 단지 이름판, 안내, 타이틀로
       h += '<div style="' + L.at(24, 18, 360, 93) + ' box-sizing: border-box; ' + L.WOOD + '">'
         + '<div style="' + L.at(6, 6, 342, 75) + ' box-sizing: border-box; ' + L.PAPER + '">'

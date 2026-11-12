@@ -200,6 +200,42 @@
     }
   };
 
+  // ---------- 단지 앞줄 시설 4개 (건물과 같은 색·같은 규칙, 작게) ----------
+  Object.assign(DESIGNS, {
+    fac_board() {   // 현장 게시판: 나무판에 공고 세 장
+      const p = Pic(44, 24);
+      p.box(6, 12, 3, 12, 'wood').box(35, 12, 3, 12, 'wood');
+      p.box(1, 0, 42, 16, 'wood');
+      [[5, 3], [17, 2], [29, 3]].forEach(([x, y]) => p.box(x, y, 10, 11, 'cream').px(x + 4, y + 1, C.terra).px(x + 5, y + 1, C.terra).fill(x + 2, y + 5, 6, 1, C.sandD).fill(x + 2, y + 7, 5, 1, C.sandD));
+      return p;
+    },
+    fac_shed() {   // 자재 창고: 박공지붕 작은 창고, 두 짝 문
+      const p = Pic(40, 24);
+      p.gable(20, 8, 40, 'slate');
+      p.box(3, 9, 34, 15, 'sand');
+      p.box(14, 12, 12, 12, 'wood').fill(20, 13, 1, 11, C.O);
+      p.win(6, 13, 5, 5).win(29, 13, 5, 5);
+      return p;
+    },
+    fac_shelf() {   // 도감 책장: 칸마다 책
+      const p = Pic(32, 24);
+      p.box(0, 0, 32, 24, 'wood');
+      const books = [C.terra, C.slate, C.sage, C.cream, C.sand, C.terraD, C.slateD];
+      [2, 12].forEach((y, r) => {
+        p.fill(2, y + 9, 28, 1, C.terraD);
+        for (let k = 0; k < 7; k++) p.fill(3 + k * 4, y + 1 + ((k + r) % 3), 3, 8 - ((k + r) % 3), books[(k + r * 3) % books.length]);
+      });
+      return p;
+    },
+    fac_daily() {   // 데일리 현장: 기둥 위 달력 (날짜 숫자는 화면에서 글자로 얹는다)
+      const p = Pic(30, 24);
+      p.box(13, 16, 4, 8, 'wood');
+      p.box(1, 0, 28, 18, 'white').box(1, 0, 28, 5, 'terra');
+      p.box(6, -1, 2, 3, 'dark').box(22, -1, 2, 3, 'dark');
+      return p;
+    }
+  });
+
   // 그림판 → PNG 주소 (한 번 만들면 기억해 둔다)
   const cache = {};
   JG.buildingImg = look => {
