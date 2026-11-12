@@ -484,6 +484,14 @@ Object.assign(JG.CARDS, TEST_CARDS);
   t('다능공: 철근 → 형틀 단계로 셈', k.combo === 2);
 }
 
+// ---- 단지: 데일리 건물 ----
+{
+  const keys = Array.from({ length: 365 }, (_, k) => { const d = new Date(2026, 0, 1 + k); return [d, d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')]; });
+  const ids = JG.BUILDINGS.map(b => b.id);
+  t('데일리 건물: 날짜마다 12종 중 하나, 날짜 키로 찾아도 같음', keys.every(([d, k]) => ids.includes(D.siteFor(d).look) && D.lookOf(k) === D.siteFor(d).look && D.siteFor(d).name === JG.BUILDINGS.find(b => b.id === D.siteFor(d).look).name));
+  t('데일리 건물: 1년이면 12종이 모두 나옴', ids.every(id => keys.some(([d]) => D.siteFor(d).look === id)));
+}
+
 // ---- 카드 확장 3단계: 모은 별로 여는 카드 ----
 {
   const U = JG.CARD_UNLOCKS, inTiers = U.flatMap(u => u.cards), fromSites = JG.SITES.flatMap(st => [].concat(st.reward || []));

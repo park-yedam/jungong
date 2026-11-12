@@ -30,6 +30,7 @@
   JG.daily = {
     siteFor,
     today: () => siteFor(new Date()),
+    lookOf: key => { const [y, m, d] = key.split('-').map(Number); return siteFor(new Date(y, m - 1, d)).look; },   // 그날의 건물 종류
     unlocked: () => JG.progress.best('deep') > 0,   // 5번 현장 준공
     best: key => (JG.save.data.daily || {})[key] || 0,
     // 결과를 메신저 등에 붙여 넣을 수 있는 글로

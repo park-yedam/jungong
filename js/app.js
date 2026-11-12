@@ -12,7 +12,7 @@
   const KEY = 'jungong.save.v1';
   // best: 현장별 최고 별, stars: 모은 별(누적), cards: 받은 확장 카드, slang: 본 현장 말,
   // dex: 풀이를 본 카드·문제(도감), settings: 소리·난이도 설정, deck: 자재 창고에서 고른 덱(없으면 기본 덱),
-  // daily: 데일리 현장 날짜별 최고 별, game: 하던 판
+  // daily: 데일리 현장 날짜별 최고 별, built: 데일리로 모은 단지 건물 { 건물 id: { date, stars } }, game: 하던 판
   // 모은 별로 열린 카드 중 아직 안 받은 것을 받는다 (도감에도). 새로 받은 카드 id 목록을 돌려준다
   function grantStarCards(d) {
     const got = [];
@@ -26,8 +26,14 @@
     });
     return got;
   }
+  // 데일리 준공으로 그날의 건물을 단지에 세운다. 처음 세운 건물이면 그 id를 돌려준다
+  function buildDaily(d, key, stars) {
+    const look = JG.daily.lookOf(key), b = d.built[look];
+    d.built[look] = { date: b ? b.date : key, stars: Math.max(b ? b.stars : 0, stars) };
+    return b ? null : look;
+  }
   function load() {
-    const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], dex: { cards: [], probs: [] }, settings: { sfx: true, bgm: true, difficulty: 'normal' }, deck: null, daily: {}, game: null };
+    const d = { v: 1, best: {}, stars: 0, cards: [], slang: [], dex: { cards: [], probs: [] }, settings: { sfx: true, bgm: true, difficulty: 'normal' }, deck: null, daily: {}, built: {}, game: null };
     try {
       const old = JSON.parse(localStorage.getItem(KEY));
       if (old && old.v === 1) Object.assign(d, old, { settings: Object.assign(d.settings, old.settings) });
@@ -38,6 +44,8 @@
       if (d.best[s.id]) [].concat(s.reward || []).forEach(id => { if (!d.cards.includes(id)) d.cards.push(id); if (!d.dex.cards.includes(id)) d.dex.cards.push(id); });
     });
     grantStarCards(d);   // 카드 확장 전에 모은 별만큼은 바로 받는다
+    // 예전 데일리 준공 기록도 그날의 건물로 단지에 세운다
+    Object.keys(d.daily).sort().forEach(key => { if (d.daily[key] > 0) buildDaily(d, key, d.daily[key]); });
     return d;
   }
   JG.save = {
@@ -75,8 +83,9 @@
       d.daily[key] = Math.max(d.daily[key] || 0, stars);
       d.stars += stars;
       const starCards = grantStarCards(d);   // 데일리로 모은 별로도 카드가 열린다
+      const newBuilding = buildDaily(d, key, stars);   // 그날의 건물이 단지 2구역에
       JG.save.write();
-      return { stars, first, rewards: starCards, starCards, daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
+      return { stars, first, rewards: starCards, starCards, newBuilding, daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },
     // 수업용 현장(시나리오 코드)은 연습용: 별·칭호·카드를 바꾸지 않는다
     recordScenario(stars) {
