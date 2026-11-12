@@ -96,7 +96,7 @@
       const b = JG.BUILDINGS.find(x => x.id === info.newBuilding), img = JG.buildingImg(b.id), dot = img.h * 2 <= 90 ? 2 : 1.5;
       return txt(12, 12, '새 건물 · 우리 회사 단지로', 'color: #B83E3C') + JG.buildingHtml(b.id, 62, 124, dot)
         + txt(124, 44, b.name, 'font-size: 32px; line-height: 32px; white-space: nowrap')
-        + '<p style="' + L.at(124, 84, 152) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">단지 2구역에 들어섰어요</p>';
+        + '<p style="' + L.at(124, 84, 152) + ' margin: 0; line-height: 20px; color: #5C3A1E; word-break: keep-all">우리 회사 단지에 들어섰어요</p>';
     }
     if (!list.length) {
       return h + txt(12, 40, '이번에는 없어요', 'font-size: 32px; line-height: 32px')
@@ -160,7 +160,7 @@
         + (isDaily() ? ' 결과 복사를 눌러 친구와 별을 비교해 보세요.' : '') + (isScenario() ? ' 수업 현장은 연습용이라 별이 기록되지 않아요.' : '')
         + ((info.rewards || []).length ? ' 새 카드 ' + E.eul(info.rewards.map(id => JG.CARDS[id].name).join(', ')) + ' 받았어요.' : '')
         + ((info.starCards || []).length ? ' (모은 별 ' + info.total + '개로 열린 카드 포함)' : '')
-        + (info.newBuilding ? ' 새 건물: ' + E.ga(JG.BUILDINGS.find(x => x.id === info.newBuilding).name) + ' 우리 회사 단지 2구역에 들어섰어요!' : '')
+        + (info.newBuilding ? ' 새 건물: ' + E.ga(JG.BUILDINGS.find(x => x.id === info.newBuilding).name) + ' 우리 회사 단지에 들어섰어요!' : '')
         + (info.rank > info.rankBefore ? ' 칭호가 ' + E.ro(JG.RANKS[info.rank].name) + ' 올랐어요!' : '');
     },
     msg: () => msg,

@@ -83,7 +83,7 @@
       d.daily[key] = Math.max(d.daily[key] || 0, stars);
       d.stars += stars;
       const starCards = grantStarCards(d);   // 데일리로 모은 별로도 카드가 열린다
-      const newBuilding = buildDaily(d, key, stars);   // 그날의 건물이 단지 2구역에
+      const newBuilding = buildDaily(d, key, stars);   // 그날의 건물이 우리 회사 단지에
       JG.save.write();
       return { stars, first, rewards: starCards, starCards, newBuilding, daily: true, totalBefore: before, total: d.stars, rankBefore: JG.progress.rankOf(before), rank: JG.progress.rankOf(d.stars) };
     },

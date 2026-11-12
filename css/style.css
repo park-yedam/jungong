@@ -114,3 +114,6 @@ body.rotate-ok #rotate { display: none; }
   border: 3px solid #3B2A20;
   cursor: pointer;
 }
+
+/* 우리 회사 단지 건물 줄: 스크롤 막대는 숨기고 끌기·휠·화살표로 넘긴다 */
+#town-row::-webkit-scrollbar { display: none; }
