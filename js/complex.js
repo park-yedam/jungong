@@ -4,7 +4,7 @@
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc, P = JG.progress;
   const GROUND = 400, CELL = 36, K = CELL / 48;   // 건물 칸은 대전 화면의 3/4 크기
-  let msg = '';
+  let msg = '', zone = 0;   // zone: 0 = 1구역(현장 5곳), 1 = 2구역(데일리로 모은 건물)
 
   const span = (x, y, w, h, style) => '<span aria-hidden="true" style="' + L.at(x, y, w, h) + ' display: block; box-sizing: border-box; ' + style + '"></span>';
   // 3/4 크기로 줄인 벽돌 칸 하나
@@ -33,6 +33,18 @@
     return '<button type="button" data-act="lot:' + i + '" aria-label="' + esc(aria) + '" style="' + L.at(x, y0, 200, h) + ' ' + L.BTN + '; background: transparent; border: 0">'
       + art
       + '<span style="' + L.at(10, h - 50, 180, 48) + ' display: block; box-sizing: border-box; ' + L.PAPER + '; text-align: center; font-size: 16px; line-height: 19px; padding-top: 3px">' + plate + '</span></button>';
+  }
+
+  // 2구역 땅 하나 (데일리 건물 12종, 두 줄 × 6칸): 모았으면 도트 건물(점 2px), 아니면 빈 땅
+  function dailyLot(b, k) {
+    const x = 30 + (k % 6) * 232, ground = k < 6 ? 250 : 400, got = (JG.save.data.built || {})[b.id];
+    const y0 = ground - 112, h = 112 + 30;
+    const art = got ? JG.buildingHtml(b.id, 110, 112, 2)
+      : span(40, 100, 140, 12, 'background: #C9A36B; border: 3px dashed #8B5A2B') + '<span aria-hidden="true" style="' + L.at(0, 66, 220) + ' display: block; text-align: center; font-size: 32px; line-height: 32px; color: rgba(139, 90, 43, 0.6)">?</span>';
+    const plate = esc(b.name) + (got ? ' <span style="color: #F7C948; ' + L.OUT1 + '">' + '★'.repeat(got.stars) + '</span>' : ' · 데일리로');
+    const aria = got ? b.name + '. ' + got.date + ' 데일리 준공, 최고 별 ' + got.stars + '개' : b.name + '. 아직 없어요. 데일리 현장이 ' + b.name + '인 날 준공하면 들어서요';
+    return '<button type="button" data-act="dlot:' + k + '" aria-label="' + esc(aria) + '" style="' + L.at(x, y0, 220, h) + ' ' + L.BTN + '; background: transparent; border: 0">'
+      + art + '<span style="' + L.at(20, 114, 180, 26) + ' display: block; box-sizing: border-box; ' + L.PAPER + '; text-align: center; font-size: 16px; line-height: 20px; white-space: nowrap">' + plate + '</span></button>';
   }
 
   // 앞줄 시설: 그림 + 이름판
@@ -71,7 +83,7 @@
   }
 
   JG.screens.complex = {
-    enter() { msg = '우리 회사 단지예요. 준공한 건물을 누르면 그 현장을 다시 할 수 있어요.'; },
+    enter() { zone = 0; msg = '우리 회사 단지예요. 준공한 건물을 누르면 그 현장을 다시 할 수 있어요.'; },
     msg: () => msg,
 
     click(act, n) {
@@ -83,6 +95,18 @@
       if (act === 'daily') {
         if (!JG.daily.unlocked()) { msg = '데일리 현장은 5번 현장(도심 지하 굴착)을 준공하면 열려요.'; return; }
         JG.app.show('tbm', { daily: true });
+        return;
+      }
+      if (act === 'zone') {   // 1구역·2구역
+        zone = n;
+        const got = Object.keys(JG.save.data.built || {}).length;
+        msg = zone ? '2구역: 데일리로 모은 건물 ' + got + '/' + JG.BUILDINGS.length + '채. 데일리 현장을 준공하면 그날의 건물이 들어서요.' : '1구역: 현장 5곳. 준공한 건물을 누르면 다시 할 수 있어요.';
+        return;
+      }
+      if (act === 'dlot') {
+        const b = JG.BUILDINGS[n], got = (JG.save.data.built || {})[b.id];
+        msg = got ? b.name + ': ' + got.date.replace(/-/g, '.') + ' 데일리 준공 · 최고 별 ' + '★'.repeat(got.stars) + '☆'.repeat(3 - got.stars)
+          : b.name + ': 아직 없어요. 데일리 현장이 ' + b.name + '인 날 준공하면 들어서요.' + (JG.daily.unlocked() ? '' : ' (데일리 현장은 5번 현장을 준공하면 열려요)');
         return;
       }
       if (act === 'lot') {
@@ -102,7 +126,12 @@
       h += '<div aria-hidden="true" style="' + L.at(0, GROUND, 1440, 12) + ' background: #8BC34A; box-shadow: inset 0 -6px 0 #6FA83A"></div>';
       h += '<div aria-hidden="true" style="' + L.at(0, 520, 1440, 96) + ' background: #D9A066; border-top: 3px solid #B07A47; border-bottom: 3px solid #B07A47"></div>';
       // 현장 땅 5곳
-      JG.SITES.forEach((site, i) => { h += lot(site, i); });
+      if (zone === 1) {   // 2구역 뒷줄이 설 언덕 (뒤쪽 땅이라 조금 연하게)
+        h += '<div aria-hidden="true" style="' + L.at(0, 250, 1440, 150) + ' background: #A8D672"></div>';
+        h += '<div aria-hidden="true" style="' + L.at(0, 250, 1440, 9) + ' background: #A8D672; box-shadow: inset 0 -4px 0 #8BC34A"></div>';
+      }
+      if (zone === 0) JG.SITES.forEach((site, i) => { h += lot(site, i); });
+      else JG.BUILDINGS.forEach((b, k) => { h += dailyLot(b, k); });
       h += walkers();
       h += L.sprite(JG.bossSprite(), 1330, 480);   // 길 끝에 선 현장소장 (용어 OX를 다 맞히면 금색 안전모)
       // 앞줄 시설
@@ -117,7 +146,12 @@
         + '<div style="' + L.at(6, 6, 342, 75) + ' box-sizing: border-box; ' + L.PAPER + '">'
         + '<h1 style="' + L.at(12, 9) + ' margin: 0; font-size: 32px; line-height: 32px; font-weight: normal">우리 회사 단지</h1>'
         + '<div style="' + L.at(12, 44) + ' color: #5C3A1E">칭호: ' + esc(rank) + ' · 모은 별 ' + d.stars + '개</div></div></div>';
-      h += '<p style="' + L.at(402, 30, 816, 60) + ' margin: 0; box-sizing: border-box; padding: 0 18px; ' + L.PAPER + '; line-height: 54px; white-space: nowrap; overflow: hidden">' + esc(msg) + '</p>';
+      const got = Object.keys(d.built || {}).length;
+      [['1구역 · 현장', 976], ['2구역 ' + got + '/' + JG.BUILDINGS.length, 1102]].forEach(([label, x], k) => {
+        h += '<button type="button" data-act="zone:' + k + '" aria-pressed="' + (zone === k) + '" aria-label="' + (k ? '2구역, 데일리로 모은 건물 ' + got + '채' : '1구역, 현장 5곳') + '" style="' + L.at(x, 30, 120, 60) + ' ' + L.BTN + '; '
+          + (zone === k ? L.PAPER : 'background: #CF965C; border: 3px solid #3B2A20') + '; font-size: 16px">' + esc(label) + '</button>';
+      });
+      h += '<p style="' + L.at(402, 30, 560, 60) + ' margin: 0; box-sizing: border-box; padding: 6px 18px; ' + L.PAPER + '; line-height: 21px; word-break: keep-all; overflow: hidden">' + esc(msg) + '</p>';
       h += '<button type="button" data-act="title" style="' + L.at(1236, 30, 180, 60) + ' ' + L.BTN + '; ' + L.PAPER + '">◀ 타이틀로</button>';
       return h + '</div>';
     }
