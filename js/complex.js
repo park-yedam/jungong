@@ -4,13 +4,51 @@
 (() => {
   const JG = globalThis.JG, L = JG.look, esc = JG.esc, P = JG.progress;
   const GROUND = 400, CELL = 36, K = CELL / 48;   // 건물 칸은 대전 화면의 3/4 크기
-  const ROOFS = ['#C0603C', '#5B8DEF', '#9AA0A6', '#3E8C42', '#8E6440'];
   let msg = '';
 
   const span = (x, y, w, h, style) => '<span aria-hidden="true" style="' + L.at(x, y, w, h) + ' display: block; box-sizing: border-box; ' + style + '"></span>';
   // 3/4 크기로 줄인 벽돌 칸 하나
   const bay = (name, x, y, extra) => '<span aria-hidden="true" style="display: block; position: absolute; left: ' + (x - 3 * K) + 'px; top: ' + (y - 3 * K) + 'px; width: 3px; height: 3px; box-shadow: '
     + JG.SPRITES[name] + '; transform: scale(' + K + '); transform-origin: 0 0; ' + (extra || '') + '"></span>';
+
+  // ---------- 종류별 건물 그림 (단지용) ----------
+  // 외곽선 있는 상자, 불 켜진 창문 여러 개
+  const box = (x, y, w, h, bg) => span(x, y, w, h, 'background: ' + bg + '; border: 3px solid #3B2A20');
+  const wins = (xs, ys, w, h, bg) => xs.map(x => ys.map(y => box(x, y, w, h, bg || '#FFE08A')).join('')).join('');
+  // look: 건물 종류, L: 왼쪽, G: 땅 높이 (버튼 안 좌표). 그림 높이는 종류마다 다르다
+  function building(look, L, G) {
+    if (look === 'house') {   // 뾰족 지붕 2층 집, 굴뚝
+      return box(L + 98, G - 112, 14, 26, '#9AA0A6')
+        + [140, 108, 76, 44].map((w, k) => span(L + 72 - w / 2, G - 84 - k * 9, w, 12, 'background: #C0603C; border: 3px solid #3B2A20')).join('')
+        + box(L + 12, G - 74, 120, 74, '#F4E4BC') + wins([L + 26, L + 98], [G - 62, G - 30], 22, 20) + box(L + 60, G - 34, 24, 34, '#8B5A2B');
+    }
+    if (look === 'retail') {   // 1층 가게(유리·줄무늬 차양·간판) + 위층 사무실
+      return box(L, G - 144, 144, 144, '#E8D2A0') + span(L - 3, G - 150, 150, 9, 'background: #8E6440; border: 3px solid #3B2A20')
+        + wins([L + 12, L + 46, L + 80, L + 114], [G - 134, G - 98], 18, 20)
+        + box(L + 22, G - 70, 100, 16, '#5B8DEF')
+        + span(L - 4, G - 52, 152, 14, 'background: repeating-linear-gradient(90deg, #E35D5B 0 12px, #FFFFFF 12px 24px); border: 3px solid #3B2A20')
+        + box(L + 8, G - 38, 92, 38, '#9CC7DC') + box(L + 106, G - 38, 30, 38, '#8B5A2B');
+    }
+    if (look === 'apart') {   // 층마다 발코니 난간이 있는 아파트
+      let h = box(L, G - 180, 144, 180, '#F4F1E8') + span(L - 3, G - 186, 150, 9, 'background: #3E8C42; border: 3px solid #3B2A20');
+      for (let f = 0; f < 5; f++) {
+        const y = G - 174 + f * 36;
+        h += wins([L + 12, L + 60, L + 108], [y], 24, 20) + (f < 4 ? span(L + 6, y + 22, 132, 6, 'background: #9AA0A6; border: 2px solid #3B2A20') : '');
+      }
+      return h + box(L + 60, G - 30, 24, 30, '#8B5A2B');
+    }
+    if (look === 'warehouse') {   // 넓고 낮은 물류창고, 셔터 문 3개
+      return span(L - 24, G - 96, 192, 15, 'background: #5B8DEF; border: 3px solid #3B2A20') + box(L - 20, G - 84, 184, 84, '#B8C2CC')
+        + span(L - 8, G - 74, 160, 10, 'background: #9CC7DC; border: 2px solid #3B2A20')
+        + [0, 1, 2].map(k => span(L - 6 + k * 58, G - 50, 46, 50, 'background: repeating-linear-gradient(#9AA0A6 0 6px, #7E858C 6px 9px); border: 3px solid #3B2A20')).join('');
+    }
+    if (look === 'office') {   // 유리 커튼월 오피스 빌딩, 옥상 안테나
+      return span(L + 70, G - 186, 4, 24, 'background: #3B2A20') + box(L + 12, G - 166, 120, 166,
+        '#7FB2E5; background-image: linear-gradient(90deg, rgba(59, 42, 32, 0.55) 2px, transparent 2px), linear-gradient(rgba(59, 42, 32, 0.55) 2px, transparent 2px); background-size: 20px 18px')
+        + box(L + 52, G - 34, 40, 34, '#3E5C8A');
+    }
+    return '';
+  }
 
   // 현장 땅 하나 (200×?) → 버튼. 건물·비계·울타리와 이름판
   function lot(site, i) {
@@ -19,9 +57,7 @@
     const bx = x + 28, top = GROUND - CELL * floors;
     let art = '';
     if (best) {
-      for (let f = 0; f < floors; f++) for (let b = 0; b < 4; b++) art += bay('bay_lit', bx + b * CELL - x, GROUND - CELL * (f + 1) - (top - 60));
-      art += span(bx - 6 - x, -21 + 60, 4 * CELL + 12, 21, 'background: ' + ROOFS[i] + '; border: 3px solid #3B2A20');
-      art += L.sprite('flag', bx + 2 * CELL - 12 - x, 60 - 48);   // 지붕 위에 선 깃발
+      art += building(site.look, bx - x, GROUND - (top - 60));   // 준공한 현장: 종류별 건물
     } else if (open) {
       for (let f = 0; f < floors; f++) for (let b = 0; b < 4; b++) art += bay('bay_empty', bx + b * CELL - x, GROUND - CELL * (f + 1) - (top - 60));
     } else {

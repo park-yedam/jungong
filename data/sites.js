@@ -5,6 +5,7 @@
 // guide: 그 턴이 시작될 때 현장 안내 패널에 띄울 첫 판 안내 문구 { 턴 번호: 문구 }
 // reward: 이 현장을 처음 준공하면 받는 확장 카드들
 // turnSeconds: 보통 난이도의 턴 시간 제한(초). 없으면 제한 없음
+// look: 우리 회사 단지에 서는 건물 모양 (house 집, retail 가게, apart 아파트, warehouse 창고, office 오피스)
 // basement: 지하층 수 (벽돌 4칸 = 1층, 아래층부터 지하로 센다)
 var JG = globalThis.JG = globalThis.JG || {};
 
@@ -21,7 +22,7 @@ JG.CONDITIONS = {
 
 JG.SITES = [
   {
-    id: 'house', no: 1, name: '단독주택 신축', bricks: 12, condition: null,
+    id: 'house', look: 'house', no: 1, name: '단독주택 신축', bricks: 12, condition: null,
     learn: '카드 내기, 망치질',
     // 첫 문제는 3턴에 나온다 (첫 판 안내 순서와 맞춤)
     forecast: [null, 'crack', null, 'crack', 'crack', null, 'crack', 'crack'],
@@ -35,26 +36,26 @@ JG.SITES = [
     reward: ['signal', 'bim']
   },
   {
-    id: 'retail', no: 2, name: '근린생활시설', bricks: 16, condition: null,
+    id: 'retail', look: 'retail', no: 2, name: '근린생활시설', bricks: 16, condition: null,
     learn: '방호',
     forecast: ['crack', null, 'noise', 'crack', 'crack', 'noise', 'crack', 'crack'],
     reward: ['wetcure', 'redesign']
   },
   {
-    id: 'apart', no: 3, name: '장마철 아파트', bricks: 20, condition: 'rain',
+    id: 'apart', look: 'apart', no: 3, name: '장마철 아파트', bricks: 20, condition: 'rain',
     learn: '선행공정, 양생',
     forecast: ['crack', 'noise', 'leak', 'crack', 'leak', 'noise', 'crack', 'leak'],
     reward: ['tower', 'warmcure']
   },
   {
-    id: 'winter', no: 4, name: '겨울 물류센터', bricks: 20, condition: 'cold',
+    id: 'winter', look: 'warehouse', no: 4, name: '겨울 물류센터', bricks: 20, condition: 'cold',
     learn: '보온양생',
     forecast: ['crack', 'opening', 'leak', 'change', 'noise', 'opening', 'crack', 'change'],
     turnSeconds: 30,
     reward: ['earth', 'gangform']
   },
   {
-    id: 'deep', no: 5, name: '도심 지하 굴착', bricks: 24, condition: 'soft', basement: 2,
+    id: 'deep', look: 'office', no: 5, name: '도심 지하 굴착', bricks: 24, condition: 'soft', basement: 2,
     learn: '흙막이, 덱 조합',
     forecast: ['crack', null, 'delay', 'slide', 'crack', 'opening', 'leak', 'change'],
     turnSeconds: 30,
