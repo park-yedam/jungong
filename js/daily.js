@@ -3,7 +3,6 @@
 // 브라우저와 Node(시뮬레이터, 규칙 점검) 양쪽에서 쓴다.
 (() => {
   const JG = globalThis.JG, E = JG.engine;
-  const TYPES = ['주민센터', '도서관', '오피스텔', '연구동', '복합 상가', '학교 증축', '어린이집', '체육관'];
   const BRICKS = [16, 20, 24];
   // 문제 뽑기 주머니 (균열이가 자주 나오고, 센 문제는 가끔)
   const POOL = ['crack', 'crack', 'crack', 'noise', 'leak', 'opening', 'change', 'delay', 'slide'];
@@ -21,11 +20,11 @@
   // date(Date)의 데일리 현장. 난수는 늘 같은 순서로 같은 개수만 쓴다 (기기마다 결과가 같도록)
   function siteFor(date) {
     const dateKey = keyOf(date), seed = Number(dateKey.replace(/-/g, '')), rnd = E.random(seed);
-    const name = TYPES[Math.floor(rnd() * TYPES.length)];
+    const b = JG.BUILDINGS[Math.floor(rnd() * JG.BUILDINGS.length)], name = b.name;   // 건물 종류 (data/sites.js)
     const bricks = BRICKS[Math.floor(rnd() * BRICKS.length)];
     const condition = seasonCondition(date.getMonth() + 1, rnd());
     const forecast = ['crack'].concat(Array.from({ length: 7 }, () => POOL[Math.floor(rnd() * POOL.length)]));
-    return { id: 'daily-' + dateKey, daily: true, dateKey, seed, no: 0, name, bricks, condition, learn: '오늘의 현장', forecast, turnSeconds: 30 };
+    return { id: 'daily-' + dateKey, daily: true, dateKey, seed, no: 0, name, look: b.id, bricks, condition, learn: '오늘의 현장', forecast, turnSeconds: 30 };
   }
 
   JG.daily = {

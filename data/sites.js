@@ -62,3 +62,11 @@ JG.SITES = [
     reward: ['pc', 'rushwork']
   }
 ];
+
+// 데일리 현장 건물 12종: 데일리 현장 이름이 되고, 처음 준공하면 우리 회사 단지 2구역에 한 채씩 들어선다 (id = 단지 그림 모양)
+JG.BUILDINGS = [
+  { id: 'school', name: '학교' }, { id: 'hospital', name: '병원' }, { id: 'library', name: '도서관' },
+  { id: 'daycare', name: '어린이집' }, { id: 'gym', name: '체육관' }, { id: 'center', name: '주민센터' },
+  { id: 'officetel', name: '오피스텔' }, { id: 'lab', name: '연구동' }, { id: 'mall', name: '복합 상가' },
+  { id: 'factory', name: '공장' }, { id: 'fire', name: '소방서' }, { id: 'dorm', name: '기숙사' }
+];
